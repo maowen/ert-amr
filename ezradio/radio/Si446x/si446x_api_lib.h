@@ -59,6 +59,7 @@ void si446x_change_state(U8 NEXT_STATE1);
     /* Full driver support functions */
     void si446x_func_info(void);
     void si446x_disp_func_info(void);
+    void si446x_display_rssi_info();
 
     void si446x_frr_a_read(U8 respByteCount);
     void si446x_frr_b_read(U8 respByteCount);

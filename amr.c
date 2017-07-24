@@ -1,4 +1,5 @@
 #include "amr.h"
+#include "platform/esp8266/amr_hal.h"
 #include <string.h>
 #include <osapi.h>
 
@@ -18,62 +19,6 @@ static void (*idmMsgCallback)(const AmrIdmMsg * msg) = NULL;
 
 static Ring msgRing;
 static uint8_t msgRingData[PROC_RING_BUF_SIZE] = {0};
-
-// TODO This should happen outside of this lib
-#include "../lib/esphttpclient/httpclient.h"
-#define MAX_POST_DATA_SIZE 256
-#define AMR_METER_ID 27367479
-#define AMR_THINGSPEAK_API_KEY "HVRMOK9KTZ1JUZJO"
-#define AMR_THINGSPEAK_UPDATE_URL "http://184.106.153.149/update"
-void ICACHE_FLASH_ATTR idm_post_callback(char * responseBody, int httpStatus, char * responseHeaders, int bodySize)
-{
-    os_printf("IDM %s! %s\n", httpStatus == 200 ? "SENT" : "FAILED", responseBody);
-}
-
-void ICACHE_FLASH_ATTR scm_post_callback(char * responseBody, int httpStatus, char * responseHeaders, int bodySize)
-{
-    os_printf("SCM %s! %s\n", httpStatus == 200 ? "SENT" : "FAILED", responseBody);
-}
-
-void ICACHE_FLASH_ATTR handleScmMsg(const AmrScmMsg * msg) {
-    printScmMsg(msg);
-
-    /*
-    char postData[MAX_POST_DATA_SIZE] = {0};
-    if (scmMsg.id == AMR_METER_ID) {
-        os_sprintf(postData,
-                "api_key=%s&field1=%u",
-                AMR_THINGSPEAK_API_KEY,
-                scmMsg.consumption);
-
-           http_post(AMR_THINGSPEAK_UPDATE_URL,
-           postData,
-           "",
-           scm_post_callback);
-    }
-    */
-}
-
-void ICACHE_FLASH_ATTR handleIdmMsg(const AmrIdmMsg * msg) {
-    printIdmMsg(msg);
-
-    char postData[MAX_POST_DATA_SIZE] = {0};
-    if (idmMsg.ertId == AMR_METER_ID) {
-        os_printf("Uploading IDM Msg\n");
-        os_sprintf(postData,
-                "api_key=%s&field2=%u&field3=%u",
-                AMR_THINGSPEAK_API_KEY,
-                idmMsg.lastConsumption,
-                idmMsg.differentialConsumption[0]
-                );
-
-        http_post(AMR_THINGSPEAK_UPDATE_URL,
-                postData,
-                "",
-                idm_post_callback);
-    }
-}
-// End TODO
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define NTOH_16BIT(num) ((((uint16_t)(num) << 8) & 0xff00) | (((uint16_t)(num) >> 8) & 0xff))
@@ -215,11 +160,9 @@ static inline uint16_t computeCCITTCRC(const uint8_t * data, size_t len) {
 
     return crc == 0x1D0F; /* Compare to residual value */
 }
-
 void amrInit() {
     msgRing = ringInit(msgRingData, sizeof(msgRingData));
-    registerScmMsgCallback(&handleScmMsg);
-    registerIdmMsgCallback(&handleIdmMsg);
+    amrHalInit();
 }
 
 void amrProcessRxBit(uint8_t rxBit) {
@@ -299,7 +242,7 @@ static inline void parseSCMMsg(const uint8_t *data, uint32_t t_ms) {
     }
 }
 
-static inline void ICACHE_FLASH_ATTR parseIDMMsg(const uint8_t *data, uint32_t t_ms) {
+static inline void parseIDMMsg(const uint8_t *data, uint32_t t_ms) {
     if (computeCCITTCRC(data+4, 88)) {
         memcpy(&idmMsg, data, 33);
         data+=33;
@@ -375,7 +318,7 @@ void amrProcessMsgs() {
     }
 }
 
-void ICACHE_FLASH_ATTR printIdmMsg(const AmrIdmMsg * msg) {
+void printIdmMsg(const AmrIdmMsg * msg) {
     os_printf(
             "{Time:YYYY-MM-DDTHH:MM:SS.MMM IDM:{Preamble:0x%08X PacketTypeId:0x%02X PacketLength:0x%02X "
             "HammingCode:0x%02X ApplicationVersion:0x%02X ERTType:0x%02X "
@@ -402,7 +345,7 @@ void ICACHE_FLASH_ATTR printIdmMsg(const AmrIdmMsg * msg) {
             msg->txTimeOffset, msg->serialNumberCRC, msg->pktCRC);
 }
 
-void ICACHE_FLASH_ATTR printScmMsg(const AmrScmMsg * msg) {
+void printScmMsg(const AmrScmMsg * msg) {
     os_printf(
             "{Time:YYYY-MM-DDTHH:MM:SS.MMM SCM:{ID:%u Type: %u Tamper:{Phy:%02u Enc:%02u} "
             "Consumption: %7u CRC:0x%04x}}\n",

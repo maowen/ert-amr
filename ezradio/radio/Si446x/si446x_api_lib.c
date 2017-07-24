@@ -425,6 +425,18 @@ void si446x_disp_func_info() {
 #endif
 }
 
+void si446x_display_rssi_info() {
+    si446x_get_modem_status(0xff);
+#if (defined PLATFORM_ESP8266)
+    os_printf("Si446x RSSI: CURR=%u Latch=%u Ant1=%u Ant2=%u\n",
+        Si446xCmd.GET_MODEM_STATUS.CURR_RSSI,
+        Si446xCmd.GET_MODEM_STATUS.LATCH_RSSI,
+        Si446xCmd.GET_MODEM_STATUS.ANT1_RSSI,
+        Si446xCmd.GET_MODEM_STATUS.ANT2_RSSI);
+#else
+#endif
+}
+
 /*!
  * Reads the Fast Response Registers starting with A register into @Si446xCmd union.
  *

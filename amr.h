@@ -1,3 +1,6 @@
+#ifndef AMR_LIB_H
+#define AMR_LIB_H
+
 #include <stdint.h>
 #include "ring/ringbuf.h"
 
@@ -52,3 +55,5 @@ void printIdmMsg(const AmrIdmMsg * msg);
 void printScmMsg(const AmrScmMsg * msg);
 void registerScmMsgCallback(void (*callback)(const AmrScmMsg * msg));
 void registerIdmMsgCallback(void (*callback)(const AmrIdmMsg * msg));
+
+#endif
