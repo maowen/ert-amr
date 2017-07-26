@@ -246,7 +246,7 @@ static inline void parseSCMMsg(const uint8_t *data, uint32_t t_ms) {
         }
     }
     else {
-        /* printf("INAVLID SCM CHECKSUM\n"); */
+        debug_printf("INAVLID SCM CHECKSUM\n");
     }
 }
 
@@ -287,7 +287,7 @@ static inline void parseIDMMsg(const uint8_t *data, uint32_t t_ms) {
         }
     }
     else {
-        /* printf("INVALID IDM CHECKSUM\n"); */
+        debug_printf("INVALID IDM CHECKSUM\n");
     }
 }
 
@@ -313,7 +313,7 @@ void amrProcessMsgs() {
                     break;
                 default:
                     {
-                        printf("Unhandled message type: %u\n", hdr->type);
+                        debug_printf("Unhandled message type: %u\n", hdr->type);
                     }
                     break;
             }

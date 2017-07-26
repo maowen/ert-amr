@@ -24,8 +24,8 @@
  * due to data memory overflow */
 
 // These only need to be enabled for debugging
-#define  RADIO_DRIVER_EXTENDED_SUPPORT
-#define  RADIO_DRIVER_FULL_SUPPORT
+// #define RADIO_DRIVER_EXTENDED_SUPPORT
+// #define RADIO_DRIVER_FULL_SUPPORT
 
 /*------------------------------------------------------------------------*/
 /*            Application specific includes                               */
@@ -43,6 +43,9 @@
 #include <ets_sys.h>
 
 #include "./hardware_defs.h"
+#else
+#include <stdio.h> // printf
+#include <unistd.h> // usleep
 #endif
 
 #include "../radio/radio.h"

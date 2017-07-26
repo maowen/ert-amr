@@ -43,7 +43,7 @@ void ICACHE_FLASH_ATTR vRadio_PowerUp(void)
   /* Hardware reset the chip */
   si446x_reset();
 
-  os_delay_us(10000);
+  usleep(10000);
   /* Wait until reset timeout or Reset IT signal */
   /* for (; wDelay < pRadioConfiguration->Radio_Delay_Cnt_After_Reset; wDelay++); */
 }
@@ -59,18 +59,17 @@ void ICACHE_FLASH_ATTR vRadio_PowerUp(void)
 void ICACHE_FLASH_ATTR vRadio_Init(void)
 {
   /* Power Up the radio chip */
-  printf("Radio POR\n");
+  debug_printf("Radio POR\n");
   vRadio_PowerUp();
 
-  si446x_disp_dev_state(); 
-  printf("Powering up radio... ");
+  debug_printf("Powering up radio... ");
   si446x_power_up(0x01, 0x00, RADIO_CONFIGURATION_DATA_RADIO_XO_FREQ);
-  printf("Done\n");
-  si446x_disp_dev_state(); 
-  printf("Get INT status... ");
+  debug_printf("Done\n");
+  /* si446x_disp_dev_state();  */
+  debug_printf("Get INT status... ");
   si446x_get_int_status(0x00, 0x00, 0x00);
-  printf("Done\n");
-  si446x_disp_dev_state();
+  debug_printf("Done\n");
+  /* si446x_disp_dev_state(); */
 
   /* Load radio configuration */
   while (SI446X_SUCCESS != si446x_configuration_init(pRadioConfiguration->Radio_ConfigurationArray))
@@ -83,11 +82,11 @@ void ICACHE_FLASH_ATTR vRadio_Init(void)
     vCio_ToggleLed(0x04);
 #endif
 */
-      os_delay_us(10000);
+    usleep(10000);
     /* Power Up the radio chip */
     vRadio_PowerUp();
   }
-  printf("Completed EZ Config!\n");
+  debug_printf("Completed EZ Config!\n");
 
 
   // Read ITs, clear pending ones

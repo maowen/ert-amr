@@ -61,15 +61,15 @@ void amrHalInit() {
     RF_RX_DATA_INIT;
     gpio_pin_intr_state_set(RF_RX_CLK_ID_PIN,GPIO_PIN_INTR_POSEDGE);
 
-    printf("Starting radio init\n");
+    debug_printf("Starting radio init\n");
     /* si446x_disp_func_info(); */
     vRadio_Init();
-    printf("Finished radio init\n");
+    debug_printf("Finished radio init\n");
     /* si446x_disp_func_info(); */
     /* si446x_disp_dev_state(); */
     /* si446x_disp_gpio_pin_cfg(); */
 
-    printf("Start RX...\n");
+    debug_printf("Start RX...\n");
     vRadio_StartRX(0);
 
     ETS_GPIO_INTR_ENABLE(); /* Enable GPIO interrupts */

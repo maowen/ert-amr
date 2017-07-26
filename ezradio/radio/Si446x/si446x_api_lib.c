@@ -32,10 +32,10 @@ void ICACHE_FLASH_ATTR si446x_reset(void)
 
     /* Put radio in shutdown, wait then release */
     radio_hal_AssertShutdown();
-    os_delay_us(20000);
+    usleep(20000);
 
     radio_hal_DeassertShutdown();
-    os_delay_us(20000);
+    usleep(20000);
     radio_comm_ClearCTS();
 }
 
