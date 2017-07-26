@@ -132,13 +132,13 @@ void ICACHE_FLASH_ATTR si446x_part_info(void)
 void si446x_disp_part_info(void) {
     si446x_part_info();
     
-    os_printf("EZRadio Part Info:\n");
-    os_printf(" Revision: 0x%x\n", Si446xCmd.PART_INFO.CHIPREV);
-    os_printf(" Part #: 0x%x\n", Si446xCmd.PART_INFO.PART);
-    os_printf(" Part Build: 0x%x\n", Si446xCmd.PART_INFO.PBUILD);
-    os_printf(" ID #: 0x%x\n", Si446xCmd.PART_INFO.ID);
-    os_printf(" Customer #: 0x%x\n", Si446xCmd.PART_INFO.CUSTOMER);
-    os_printf(" ROM ID: 0x%x\n", Si446xCmd.PART_INFO.ROMID);
+    printf("EZRadio Part Info:\n");
+    printf(" Revision: 0x%x\n", Si446xCmd.PART_INFO.CHIPREV);
+    printf(" Part #: 0x%x\n", Si446xCmd.PART_INFO.PART);
+    printf(" Part Build: 0x%x\n", Si446xCmd.PART_INFO.PBUILD);
+    printf(" ID #: 0x%x\n", Si446xCmd.PART_INFO.ID);
+    printf(" Customer #: 0x%x\n", Si446xCmd.PART_INFO.CUSTOMER);
+    printf(" ROM ID: 0x%x\n", Si446xCmd.PART_INFO.ROMID);
 }
 
 /*! Sends START_TX command to the radio.
@@ -415,26 +415,20 @@ void ICACHE_FLASH_ATTR si446x_func_info(void)
 
 void si446x_disp_func_info() {
     si446x_func_info();
-#if (defined PLATFORM_ESP8266)
-    os_printf("Func Info - Rev EXT: %u BRANCH: %u INT: %u Func: %u Patch: %u\n",
+    printf("Func Info - Rev EXT: %u BRANCH: %u INT: %u Func: %u Patch: %u\n",
             Si446xCmd.FUNC_INFO.REVEXT,
             Si446xCmd.FUNC_INFO.REVBRANCH,
             Si446xCmd.FUNC_INFO.REVINT,
             Si446xCmd.FUNC_INFO.FUNC);
-#else
-#endif
 }
 
 void si446x_display_rssi_info() {
     si446x_get_modem_status(0xff);
-#if (defined PLATFORM_ESP8266)
-    os_printf("Si446x RSSI: CURR=%u Latch=%u Ant1=%u Ant2=%u\n",
+    printf("Si446x RSSI: CURR=%u Latch=%u Ant1=%u Ant2=%u\n",
         Si446xCmd.GET_MODEM_STATUS.CURR_RSSI,
         Si446xCmd.GET_MODEM_STATUS.LATCH_RSSI,
         Si446xCmd.GET_MODEM_STATUS.ANT1_RSSI,
         Si446xCmd.GET_MODEM_STATUS.ANT2_RSSI);
-#else
-#endif
 }
 
 /*!
@@ -683,12 +677,9 @@ void ICACHE_FLASH_ATTR si446x_request_device_state(void)
 
 void si446x_disp_dev_state() {
     si446x_request_device_state();
-#if (defined PLATFORM_ESP8266)
-    os_printf("Device state=0x%02x\tchannel=0x%02x\n",
+    printf("Device state=0x%02x\tchannel=0x%02x\n",
         Si446xCmd.REQUEST_DEVICE_STATE.CURR_STATE,
         Si446xCmd.REQUEST_DEVICE_STATE.CURRENT_CHANNEL);
-#else
-#endif
 }
 
 /*!
@@ -820,8 +811,7 @@ void ICACHE_FLASH_ATTR si446x_gpio_pin_cfg_fast( void )
 
 void ICACHE_FLASH_ATTR si446x_disp_gpio_pin_cfg( void )
 {
-#if (defined PLATFORM_ESP8266)
-    os_printf("GPIO PIN CFG: GPIO %3d %3d %3d %3d NIRQ: 0x%02x SDO: 0x%02x GEN_CFG: 0x%02x\n",
+    printf("GPIO PIN CFG: GPIO %3d %3d %3d %3d NIRQ: 0x%02x SDO: 0x%02x GEN_CFG: 0x%02x\n",
             Si446xCmd.GPIO_PIN_CFG.GPIO[0] & 0x3f,
             Si446xCmd.GPIO_PIN_CFG.GPIO[1] & 0x3f,
             Si446xCmd.GPIO_PIN_CFG.GPIO[2] & 0x3f,
@@ -829,8 +819,6 @@ void ICACHE_FLASH_ATTR si446x_disp_gpio_pin_cfg( void )
             Si446xCmd.GPIO_PIN_CFG.NIRQ & 0x3f,
             Si446xCmd.GPIO_PIN_CFG.SDO & 0x3f,
             Si446xCmd.GPIO_PIN_CFG.GEN_CONFIG);
-#else
-#endif
 }
 
 /*!

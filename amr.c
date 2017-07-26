@@ -1,7 +1,13 @@
 #include "amr.h"
-#include "platform/esp8266/amr_hal.h"
 #include <string.h>
+
+#ifdef PLATFORM_ESP8266
+#include "platform/esp8266/amr_hal.h"
 #include <osapi.h>
+#else
+#include <stdio.h>
+#endif
+
 
 #define RX_BUF_SIZE (AMR_MSG_IDM_RAW_SIZE + sizeof(AmrMsgHeader))
 #define PROC_RING_BUF_SIZE 512
@@ -195,24 +201,26 @@ void amrProcessRxBit(uint8_t rxBit) {
             msgData[1] == 0x53 &&
             (msgData[2] & 0xf8) == 0x00) {
         hdr->type = AMR_MSG_TYPE_SCM;
-        hdr->timestamp = system_get_time() / 1000; // Convert micro to millis
+        // TODO platform agnostic time
+        /* hdr->timestamp = system_get_time() / 1000; // Convert micro to millis */
         RING_STATUS status =
             ringPush(&msgRing, rxBuf,
                     AMR_MSG_SCM_RAW_SIZE + sizeof(AmrMsgHeader));
         if (status != RING_STATUS_OK) {
-            os_printf("Failed to push msg onto ring. Status: %u\n", status);
+            printf("Failed to push msg onto ring. Status: %u\n", status);
         }
     }
     // Check for 32-bit IDM preamble/sync match (0x555516A3)
     else if (msgData[0] == 0x55 && msgData[1] == 0x55 &&
             msgData[2] == 0x16 && msgData[3] == 0xA3) {
         hdr->type = AMR_MSG_TYPE_IDM;
-        hdr->timestamp = system_get_time() / 1000; // Convert micro to millis
+        // TODO platform agnostic time
+        /* hdr->timestamp = system_get_time() / 1000; // Convert micro to millis */
         RING_STATUS status =
             ringPush(&msgRing, rxBuf,
                     AMR_MSG_IDM_RAW_SIZE + sizeof(AmrMsgHeader));
         if (status != RING_STATUS_OK) {
-            os_printf("Failed to push msg onto ring. Status: %d\n", status);
+            printf("Failed to push msg onto ring. Status: %d\n", status);
         }
     }
 }
@@ -238,7 +246,7 @@ static inline void parseSCMMsg(const uint8_t *data, uint32_t t_ms) {
         }
     }
     else {
-        /* os_printf("INAVLID SCM CHECKSUM\n"); */
+        /* printf("INAVLID SCM CHECKSUM\n"); */
     }
 }
 
@@ -279,7 +287,7 @@ static inline void parseIDMMsg(const uint8_t *data, uint32_t t_ms) {
         }
     }
     else {
-        /* os_printf("INVALID IDM CHECKSUM\n"); */
+        /* printf("INVALID IDM CHECKSUM\n"); */
     }
 }
 
@@ -305,7 +313,7 @@ void amrProcessMsgs() {
                     break;
                 default:
                     {
-                        os_printf("Unhandled message type: %u\n", hdr->type);
+                        printf("Unhandled message type: %u\n", hdr->type);
                     }
                     break;
             }
@@ -319,7 +327,7 @@ void amrProcessMsgs() {
 }
 
 void printIdmMsg(const AmrIdmMsg * msg) {
-    os_printf(
+    printf(
             "{Time:YYYY-MM-DDTHH:MM:SS.MMM IDM:{Preamble:0x%08X PacketTypeId:0x%02X PacketLength:0x%02X "
             "HammingCode:0x%02X ApplicationVersion:0x%02X ERTType:0x%02X "
             "ERTSerialNumber:%10u ConsumptionIntervalCount:%u "
@@ -336,17 +344,17 @@ void printIdmMsg(const AmrIdmMsg * msg) {
             msg->powerOutageFlags[2], msg->powerOutageFlags[3],
             msg->powerOutageFlags[4], msg->powerOutageFlags[5],
             msg->lastConsumption);
-    os_printf("%u", msg->differentialConsumption[0]);
+    printf("%u", msg->differentialConsumption[0]);
     uint8_t i = 1;
     while (i < 47) {
-        os_printf(" %u", msg->differentialConsumption[i++]);
+        printf(" %u", msg->differentialConsumption[i++]);
     }
-    os_printf("] TransmitTimeOffset:%u SerialNumberCRC:0x%04X PacketCRC:0x%02X}}\n",
+    printf("] TransmitTimeOffset:%u SerialNumberCRC:0x%04X PacketCRC:0x%02X}}\n",
             msg->txTimeOffset, msg->serialNumberCRC, msg->pktCRC);
 }
 
 void printScmMsg(const AmrScmMsg * msg) {
-    os_printf(
+    printf(
             "{Time:YYYY-MM-DDTHH:MM:SS.MMM SCM:{ID:%u Type: %u Tamper:{Phy:%02u Enc:%02u} "
             "Consumption: %7u CRC:0x%04x}}\n",
             msg->id, msg->type, msg->tamper_phy,

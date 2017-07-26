@@ -43,7 +43,7 @@ LOCAL void gpio_intr_handler(uint32 intr_mask, void *arg) {
 }
 
 void amrHalInit() {
-    os_printf("Perform AMR radio init\n");
+    printf("Perform AMR radio init\n");
 
     gpio_init();
     spi_init();
@@ -61,13 +61,15 @@ void amrHalInit() {
     RF_RX_DATA_INIT;
     gpio_pin_intr_state_set(RF_RX_CLK_ID_PIN,GPIO_PIN_INTR_POSEDGE);
 
-    si446x_disp_func_info();
+    printf("Starting radio init\n");
+    /* si446x_disp_func_info(); */
     vRadio_Init();
-    si446x_disp_func_info();
-    si446x_disp_dev_state();
-    si446x_disp_gpio_pin_cfg();
+    printf("Finished radio init\n");
+    /* si446x_disp_func_info(); */
+    /* si446x_disp_dev_state(); */
+    /* si446x_disp_gpio_pin_cfg(); */
 
-    os_printf("Start RX...\n");
+    printf("Start RX...\n");
     vRadio_StartRX(0);
 
     ETS_GPIO_INTR_ENABLE(); /* Enable GPIO interrupts */

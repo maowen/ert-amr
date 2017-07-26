@@ -22,11 +22,10 @@
  * Known issues: Some of the example projects 
  * might not build with some extended drivers 
  * due to data memory overflow */
+
+// These only need to be enabled for debugging
 #define  RADIO_DRIVER_EXTENDED_SUPPORT
 #define  RADIO_DRIVER_FULL_SUPPORT
-
-#define PLATFORM_ESP8266
-#define SILABS_RADIO_SI446X
 
 /*------------------------------------------------------------------------*/
 /*            Application specific includes                               */
@@ -35,11 +34,14 @@
 #include "./compiler_defs.h"
 
 #ifdef PLATFORM_ESP8266
-#include "osapi.h"
-#include "user_interface.h"
-
+#include "../platform/esp8266/amr_hal.h"
 #include "../platform/esp8266/spi.h"
 #include "../platform/esp8266/fastgpio.h"
+
+#include <osapi.h>
+#include <user_interface.h>
+#include <ets_sys.h>
+
 #include "./hardware_defs.h"
 #endif
 

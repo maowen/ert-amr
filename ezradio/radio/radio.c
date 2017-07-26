@@ -59,17 +59,17 @@ void ICACHE_FLASH_ATTR vRadio_PowerUp(void)
 void ICACHE_FLASH_ATTR vRadio_Init(void)
 {
   /* Power Up the radio chip */
-  /* os_printf("Radio POR\n"); */
+  printf("Radio POR\n");
   vRadio_PowerUp();
 
   si446x_disp_dev_state(); 
-  os_printf("Powering up radio... ");
+  printf("Powering up radio... ");
   si446x_power_up(0x01, 0x00, RADIO_CONFIGURATION_DATA_RADIO_XO_FREQ);
-  os_printf("Done\n");
+  printf("Done\n");
   si446x_disp_dev_state(); 
-  os_printf("Get INT status... ");
+  printf("Get INT status... ");
   si446x_get_int_status(0x00, 0x00, 0x00);
-  os_printf("Done\n");
+  printf("Done\n");
   si446x_disp_dev_state();
 
   /* Load radio configuration */
@@ -87,7 +87,7 @@ void ICACHE_FLASH_ATTR vRadio_Init(void)
     /* Power Up the radio chip */
     vRadio_PowerUp();
   }
-  os_printf("Completed EZ Config!\n");
+  printf("Completed EZ Config!\n");
 
 
   // Read ITs, clear pending ones
