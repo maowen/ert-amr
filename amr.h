@@ -5,11 +5,13 @@
 #include "ring/ringbuf.h"
 
 #define AMR_MSG_SCM_RAW_SIZE 12
+#define AMR_MSG_SCM_PLUS_RAW_SIZE 16
 #define AMR_MSG_IDM_RAW_SIZE 92
 
 typedef enum  {
     AMR_MSG_TYPE_SCM = 0,
-    AMR_MSG_TYPE_IDM = 1
+    AMR_MSG_TYPE_SCM_PLUS,
+    AMR_MSG_TYPE_IDM,
 } AMR_MSG_TYPE;
 
 #pragma pack(push, 1)
@@ -21,6 +23,16 @@ typedef struct {
     uint32_t consumption;
     uint16_t crc;
 } AmrScmMsg;
+
+typedef struct {
+    uint16_t frameSync;
+    uint8_t protocolId;
+    uint8_t endpointType;
+    uint32_t endpointId;
+    uint32_t consumption;
+    uint16_t tamper;
+    uint16_t crc;
+} AmrScmPlusMsg;
 
 typedef struct {
     uint32_t preamble;
@@ -51,9 +63,11 @@ typedef struct {
 void amrInit();
 void amrProcessRxBit(uint8_t rxBit);
 void amrProcessMsgs();
-void printIdmMsg(const AmrIdmMsg * msg);
 void printScmMsg(const AmrScmMsg * msg);
+void printScmPlusMsg(const AmrScmPlusMsg * msg);
+void printIdmMsg(const AmrIdmMsg * msg);
 void registerScmMsgCallback(void (*callback)(const AmrScmMsg * msg));
+void registerScmPlusMsgCallback(void (*callback)(const AmrScmPlusMsg * msg));
 void registerIdmMsgCallback(void (*callback)(const AmrIdmMsg * msg));
 
 #endif

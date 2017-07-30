@@ -18,9 +18,11 @@ static uint8_t *rxBuf = rxBuf0; //! Active data bufer
 
 static uint8_t prevRxBit = 0;
 static AmrScmMsg scmMsg = {0};
+static AmrScmPlusMsg scmPlusMsg = {0};
 static AmrIdmMsg idmMsg = {0};
 
 static void (*scmMsgCallback)(const AmrScmMsg * msg) = NULL;
+static void (*scmPlusMsgCallback)(const AmrScmPlusMsg * msg) = NULL;
 static void (*idmMsgCallback)(const AmrIdmMsg * msg) = NULL;
 
 static Ring msgRing;
@@ -191,33 +193,52 @@ void amrProcessRxBit(uint8_t rxBit) {
 
     prevRxBit = rxBit;
 
+    // Start looking for the message preambled/sync at the first location in
+    // the buffer that it will fit. (This minimizes any buffering, processing
+    // delay)
     // Leave space at the front of the Rx buffer to populate the message header
     // before pushing it onto the processing ring buffer
-    AmrMsgHeader * hdr = (AmrMsgHeader *)rxBuf;
-    uint8_t* msgData = rxBuf + sizeof(AmrMsgHeader);
+    uint8_t* scmData = rxBuf + RX_BUF_SIZE - AMR_MSG_SCM_RAW_SIZE;
+    uint8_t* scmPlusData = rxBuf + RX_BUF_SIZE - AMR_MSG_SCM_PLUS_RAW_SIZE;
+    uint8_t* idmData = rxBuf + RX_BUF_SIZE - AMR_MSG_IDM_RAW_SIZE;
 
     // Check for 21-bit SCM preamble/sync match (0x1F2A60) in first 21 of 24 bits
-    if (msgData[0] == 0xf9 &&
-            msgData[1] == 0x53 &&
-            (msgData[2] & 0xf8) == 0x00) {
+    if (scmData[0] == 0xf9 &&
+            scmData[1] == 0x53 &&
+            (scmData[2] & 0xf8) == 0x00) {
+        AmrMsgHeader * hdr = (AmrMsgHeader *)(scmData - sizeof(AmrMsgHeader));
         hdr->type = AMR_MSG_TYPE_SCM;
         // TODO platform agnostic time
         /* hdr->timestamp = system_get_time() / 1000; // Convert micro to millis */
         RING_STATUS status =
-            ringPush(&msgRing, rxBuf,
+            ringPush(&msgRing, (uint8_t*)hdr,
                     AMR_MSG_SCM_RAW_SIZE + sizeof(AmrMsgHeader));
         if (status != RING_STATUS_OK) {
             printf("Failed to push msg onto ring. Status: %u\n", status);
         }
     }
+    else if (scmPlusData[0] == 0x16 &&
+            scmPlusData[1] == 0xa3) {
+        AmrMsgHeader * hdr = (AmrMsgHeader *)(scmPlusData - sizeof(AmrMsgHeader));
+        hdr->type = AMR_MSG_TYPE_SCM_PLUS;
+        // TODO platform agnostic time
+        /* hdr->timestamp = system_get_time() / 1000; // Convert micro to millis */
+        RING_STATUS status =
+            ringPush(&msgRing, (uint8_t*)hdr,
+                    AMR_MSG_SCM_PLUS_RAW_SIZE + sizeof(AmrMsgHeader));
+        if (status != RING_STATUS_OK) {
+            printf("Failed to push msg onto ring. Status: %u\n", status);
+        }
+    }
     // Check for 32-bit IDM preamble/sync match (0x555516A3)
-    else if (msgData[0] == 0x55 && msgData[1] == 0x55 &&
-            msgData[2] == 0x16 && msgData[3] == 0xA3) {
+    else if (idmData[0] == 0x55 && idmData[1] == 0x55 &&
+            idmData[2] == 0x16 && idmData[3] == 0xA3) {
+        AmrMsgHeader * hdr = (AmrMsgHeader *)(idmData - sizeof(AmrMsgHeader));
         hdr->type = AMR_MSG_TYPE_IDM;
         // TODO platform agnostic time
         /* hdr->timestamp = system_get_time() / 1000; // Convert micro to millis */
         RING_STATUS status =
-            ringPush(&msgRing, rxBuf,
+            ringPush(&msgRing, (uint8_t*)hdr,
                     AMR_MSG_IDM_RAW_SIZE + sizeof(AmrMsgHeader));
         if (status != RING_STATUS_OK) {
             printf("Failed to push msg onto ring. Status: %d\n", status);
@@ -247,6 +268,26 @@ static inline void parseSCMMsg(const uint8_t *data, uint32_t t_ms) {
     }
     else {
         debug_printf("INAVLID SCM CHECKSUM\n");
+    }
+}
+
+static inline void parseSCMPlusMsg(const uint8_t *data, uint32_t t_ms) {
+    if(computeCCITTCRC(data+2, sizeof(AmrScmPlusMsg)-2)) {
+        memcpy(&scmPlusMsg, data, sizeof(AmrScmPlusMsg));
+        scmPlusMsg.frameSync = NTOH_16BIT(scmPlusMsg.frameSync);
+        scmPlusMsg.protocolId = scmPlusMsg.protocolId; // No op
+        scmPlusMsg.endpointType = scmPlusMsg.endpointType; // No op
+        scmPlusMsg.endpointId = NTOH_32BIT(scmPlusMsg.endpointId);
+        scmPlusMsg.consumption = NTOH_32BIT(scmPlusMsg.consumption);
+        scmPlusMsg.tamper = NTOH_16BIT(scmPlusMsg.tamper);
+        scmPlusMsg.crc = NTOH_16BIT(scmPlusMsg.crc);
+
+        if (scmMsgCallback) {
+            scmPlusMsgCallback(&scmPlusMsg);
+        }
+    }
+    else {
+        debug_printf("INAVLID SCM+ CHECKSUM\n");
     }
 }
 
@@ -306,6 +347,11 @@ void amrProcessMsgs() {
                         parseSCMMsg(msgData, hdr->timestamp);
                     }
                     break;
+                case AMR_MSG_TYPE_SCM_PLUS:
+                    {
+                        parseSCMPlusMsg(msgData, hdr->timestamp);
+                    }
+                    break;
                 case AMR_MSG_TYPE_IDM:
                     {
                         parseIDMMsg(msgData, hdr->timestamp);
@@ -362,8 +408,21 @@ void printScmMsg(const AmrScmMsg * msg) {
             msg->crc);
 }
 
+void printScmPlusMsg(const AmrScmPlusMsg * msg) {
+    printf(
+            "{Time:YYYY-MM-DDTHH:MM:SS.MMM SCM+:{ProtocolId:0x%02X "
+            "EndpointType:0x%02X EndpointID:%10u Consumption:%10u "
+            " Tamper:0x%04X PacketCRC:0x%04x}}\n",
+            msg->protocolId, msg->endpointType, msg->endpointId,
+            msg->consumption, msg->tamper, msg->crc);
+}
+
 void registerScmMsgCallback(void (*callback)(const AmrScmMsg * msg)) {
     scmMsgCallback = callback;
+}
+
+void registerScmPlusMsgCallback(void (*callback)(const AmrScmPlusMsg * msg)) {
+    scmPlusMsgCallback = callback;
 }
 
 void registerIdmMsgCallback(void (*callback)(const AmrIdmMsg * msg)) {
