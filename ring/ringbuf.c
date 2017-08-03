@@ -12,6 +12,7 @@ Ring ringInit(uint8_t * buffer, RingPos_t size) {
     }
     ring.data = buffer;
     ring.size = size;
+    ring.overflow = 0;
     memset(buffer, 0, size);
 
 #ifdef RINGBUF_DEBUG
@@ -95,6 +96,7 @@ RING_STATUS ringPush(Ring * ring, uint8_t * data, RingPos_t size) {
     printf("%s: Push failed, ring full. free: %u size: %3u head=%3u tail=%3u\n",
             __FUNCTION__, ringFree(ring), size, ring->head, ring->tail);
 #endif
+        ++(ring->overflow);
         return RING_STATUS_FAIL;
     }
 
@@ -183,4 +185,15 @@ RingPos_t ringPop(Ring * ring, uint8_t * outbuf, RingPos_t maxsize) {
             __FUNCTION__, ringFree(ring), size, ring->head, ring->tail);
 #endif
     return (maxsize == 0 || !outbuf) ? size : copySize;
+}
+
+uint8_t ringOverflowed(Ring * ring) {
+    if (ring == NULL) {
+        return 0;
+    }
+
+    uint8_t cnt = ring->overflow;
+    ring->overflow = 0;
+
+    return cnt;
 }

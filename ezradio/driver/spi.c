@@ -49,7 +49,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void spi_mode(uint8_t spi_cpha,uint8_t spi_cpol){
+void ICACHE_FLASH_ATTR spi_mode(uint8_t spi_cpha,uint8_t spi_cpol){
 	if(spi_cpha) {
 		CLEAR_PERI_REG_MASK(SPI_USER(SPI_NO), SPI_CK_OUT_EDGE);
 	} else {
@@ -77,7 +77,7 @@ void spi_mode(uint8_t spi_cpha,uint8_t spi_cpol){
 //				 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void spi_init_gpio(uint8_t sysclk_as_spiclk){
+static void ICACHE_FLASH_ATTR spi_init_gpio(uint8_t sysclk_as_spiclk){
 
 //	if(SPI_NO > 1) return; //Not required. Valid SPI_NO is checked with if/elif below.
 
@@ -131,7 +131,7 @@ void spi_clearCS(){
 //				 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void spi_clock(uint16_t prediv, uint8_t cntdiv){
+static void ICACHE_FLASH_ATTR spi_clock(uint16_t prediv, uint8_t cntdiv){
 	
 	if(SPI_NO > 1) return;
 
@@ -170,7 +170,7 @@ static void spi_clock(uint16_t prediv, uint8_t cntdiv){
 //				 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void spi_tx_byte_order(uint8_t byte_order){
+static void ICACHE_FLASH_ATTR spi_tx_byte_order(uint8_t byte_order){
 
 	if(SPI_NO > 1) return;
 
@@ -200,7 +200,7 @@ static void spi_tx_byte_order(uint8_t byte_order){
 //				 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void spi_rx_byte_order(uint8_t byte_order){
+static void ICACHE_FLASH_ATTR spi_rx_byte_order(uint8_t byte_order){
 
 	if(SPI_NO > 1) return;
 
@@ -220,7 +220,7 @@ static void spi_rx_byte_order(uint8_t byte_order){
 //				 
 ////////////////////////////////////////////////////////////////////////////////
 
-void spi_init(){
+void ICACHE_FLASH_ATTR spi_init(){
 	
 	if(SPI_NO > 1) return; //Only SPI and HSPI are valid spi modules. 
 
@@ -243,7 +243,7 @@ void spi_init(){
  * SPI transfer is based on a simultaneous send and receive:
  * the received data is returned.
  */
-uint32_t spi_transfer32(uint32_t data, uint8_t bits)
+uint32_t ICACHE_FLASH_ATTR spi_transfer32(uint32_t data, uint8_t bits)
 {
 	uint32_t regvalue = 0;
 
@@ -291,7 +291,7 @@ uint32_t spi_transfer32(uint32_t data, uint8_t bits)
  *
  * 		spi_transfer(buffer, size)				: memory buffer of length size
  */
-void spi_transfer(uint8_t *buffer, size_t numberBytes) {
+void ICACHE_FLASH_ATTR spi_transfer(uint8_t *buffer, size_t numberBytes) {
 
 #define BLOCKSIZE 64		// the max length of the ESP SPI_W0 registers
 

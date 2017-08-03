@@ -7,6 +7,8 @@
 #define AMR_MSG_SCM_RAW_SIZE 12
 #define AMR_MSG_SCM_PLUS_RAW_SIZE 16
 #define AMR_MSG_IDM_RAW_SIZE 92
+#define AMR_MAX_MSG_SIZE AMR_MSG_IDM_RAW_SIZE
+#define AMR_MSG_HDR_SIZE sizeof(AmrMsgHeader)
 
 typedef enum  {
     AMR_MSG_TYPE_SCM = 0,
@@ -57,11 +59,12 @@ typedef struct {
 typedef struct {
     AMR_MSG_TYPE type;
     uint32_t timestamp;
+    uint8_t bitOffset;
 } AmrMsgHeader;
 #pragma pack(pop)
 
 void amrInit();
-void amrProcessRxBit(uint8_t rxBit);
+static void amrProcessRxBit(uint8_t rxBit);
 void amrProcessMsgs();
 void printScmMsg(const AmrScmMsg * msg);
 void printScmPlusMsg(const AmrScmPlusMsg * msg);

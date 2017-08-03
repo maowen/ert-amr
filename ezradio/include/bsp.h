@@ -35,7 +35,8 @@
 
 #ifdef PLATFORM_ESP8266
 #include "../platform/esp8266/amr_hal.h"
-#include "../platform/esp8266/spi.h"
+#include "../driver/spi.h"
+
 #include "../platform/esp8266/fastgpio.h"
 
 #include <osapi.h>

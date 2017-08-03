@@ -2,7 +2,6 @@
 #define RINGBUF_H
 
 #include <stdint.h>
-#include <stdbool.h>
 #include <stddef.h>
 
 typedef enum RING_STATUS {
@@ -18,7 +17,7 @@ typedef struct Ring {
     RingPos_t size;
     RingPos_t head;
     RingPos_t tail;
-
+    uint8_t overflow;
 } Ring;
 
 Ring ringInit(uint8_t * buffer, RingPos_t size);
@@ -27,5 +26,6 @@ RING_STATUS ringStatus(Ring * ring);
 RING_STATUS ringPush(Ring * ring, uint8_t * data, RingPos_t size);
 RingPos_t ringPeek(Ring * ring, uint8_t ** data);
 RingPos_t ringPop(Ring * ring, uint8_t * outbuf, RingPos_t maxsize);
+uint8_t ringOverflowed(Ring * ring);
 
 #endif

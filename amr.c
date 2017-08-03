@@ -1,20 +1,38 @@
 #include "amr.h"
 #include <string.h>
 
+#ifndef AMR_DEBUG
+#define AMR_DEBUG 0
+#endif
+
 #ifdef PLATFORM_ESP8266
-#include "platform/esp8266/amr_hal.h"
+// Include AMR HAL source file so compiler can inline the
+// amrProcessRxBit function into the interrupt handler
+#include "platform/esp8266/amr_hal.c"
 #include <osapi.h>
 #else
 #include <stdio.h>
 #endif
 
 
-#define RX_BUF_SIZE (AMR_MSG_IDM_RAW_SIZE + sizeof(AmrMsgHeader))
+#define RX_BUF_SIZE (AMR_MSG_HDR_SIZE + 2*AMR_MAX_MSG_SIZE)
 #define PROC_RING_BUF_SIZE 512
+
+#define SCM_PRE_32      0xf9530000
+#define SCM_PRE_32_MASK 0xfffff800
+#define SCM_PLUS_PRE_32      0x16a30000
+#define SCM_PLUS_PRE_32_MASK 0xffff0000
+#define IDM_PRE_32      0x555516a3
+#define IDM_PRE_32_MASK 0xffffffff
+
+uint32_t minIntTime = 999999;
+uint32_t maxIntTime = 0;
 
 static uint8_t rxBuf0[RX_BUF_SIZE] = {0}; //! Manchester decoded data buffer 0
 static uint8_t rxBuf1[RX_BUF_SIZE] = {0}; //! Manchester decoded data buffer 1
 static uint8_t *rxBuf = rxBuf0; //! Active data bufer
+static uint16_t rxBufHeadBit = 0; //! Head of circular buffer in bits
+static uintptr_t xor_rxBufPtr = 0; //! XOR-ed pointers of buffers 0 and 1 for fast toggling
 
 static uint8_t prevRxBit = 0;
 static AmrScmMsg scmMsg = {0};
@@ -170,80 +188,115 @@ static inline uint16_t computeCCITTCRC(const uint8_t * data, size_t len) {
 }
 void amrInit() {
     msgRing = ringInit(msgRingData, sizeof(msgRingData));
+	xor_rxBufPtr = (uintptr_t)(rxBuf0) ^ (uintptr_t)(rxBuf1);
     amrHalInit();
 }
 
-void amrProcessRxBit(uint8_t rxBit) {
+// This function needs to be inlined into the interrupted handler for performance reasons
+static inline void amrProcessRxBit(uint8_t rxBit) {
     // The decoding of the current bit depends on the previous bit and the
     // result is stored in alternating buffers because there are two possible
     // alignments of the encoded data.
+    
+    /* uint32_t ts = system_get_time(); */
 
     // Select active buffer of manchester decoded data
-    rxBuf = (rxBuf != rxBuf0) ? rxBuf0 : rxBuf1;
+    /* rxBuf = (rxBuf != rxBuf0) ? rxBuf0 : rxBuf1; */
+    // Toggle between buffer pointers with XOR-ed value
+    rxBuf = (uint8_t*)(xor_rxBufPtr ^ (uintptr_t)rxBuf);
 
     // Manchester decode the current bit based on the previous bit
-    uint8_t manchBit = (prevRxBit && !rxBit) ? 0x1 : 0x0;
+    // Decode 0b10 as 1 and 0b01, 0b00, 0b11 as 0
+    uint8_t manchBit = prevRxBit && !rxBit;
 
-    // Shift manchester decoded buffer contents and append current decoded bit
-    uint8_t i = 0;
-    for(; i < RX_BUF_SIZE-1; i++ ) {
-        rxBuf[i] = (rxBuf[i] << 1) | (rxBuf[i+1] >> 7);
+    // Leave space at the front of the Rx buffer to populate the message header
+    uint8_t* bufHead = rxBuf + AMR_MSG_HDR_SIZE + (rxBufHeadBit / 8);
+    uint8_t bitOffset = (rxBufHeadBit % 8);
+    uint8_t nthBit = 7 - bitOffset;
+    // All rx buffer write are duplicated to a identical circular buffer at the
+    // back of the first buffer to avoid having to unwrap data;
+    *bufHead = (*bufHead & (~(1u << nthBit))) | (manchBit << nthBit);
+    *(bufHead + AMR_MAX_MSG_SIZE) = *bufHead;
+
+    uint8_t* msgEnd = bufHead + AMR_MAX_MSG_SIZE;
+    uint8_t* scmData = msgEnd - AMR_MSG_SCM_RAW_SIZE;
+    uint8_t* idmData = msgEnd - AMR_MSG_IDM_RAW_SIZE;
+    // Delay the seach for SCM+ preamble until after we checked for an IDM
+    // message. This is accomplished by using the same pointer for both of them.
+    // This will result in an SCM+ preamble being found 16-bits after every IDM
+    // message. Populating the SCM+ header in front of the message can corrupt
+    // the IDM message.
+    uint8_t* scmPlusData = idmData;
+
+    // Assemble the 32bits of data at the message starts for comparision
+    // Compute preambles
+    uint32_t scmPre =
+        (scmData[0] << (24+bitOffset)) |
+        (scmData[1] << (16+bitOffset)) |
+        (scmData[2] << (8+bitOffset)) |
+        (scmData[3] << (0+bitOffset)) |
+        (scmData[4] >> (8-bitOffset));
+    uint32_t idmPre =
+        idmData[0] << (24+bitOffset) |
+        idmData[1] << (16+bitOffset) |
+        idmData[2] << (8+bitOffset) |
+        idmData[3] << (0+bitOffset) |
+        idmData[4] >> (8-bitOffset);
+    uint32_t scmPlusPre = idmPre;
+
+
+    if ((scmPre & SCM_PRE_32_MASK) == SCM_PRE_32) {
+    /* if ((preamble & SCM_PRE_32_MASK) == SCM_PRE_32) { */
+        AmrMsgHeader * hdr = (AmrMsgHeader *)(scmData - AMR_MSG_HDR_SIZE);
+        hdr->type = AMR_MSG_TYPE_SCM;
+        // TODO populate timestamp with platform agnostic call
+        // hdr->timestamp = system_get_time() / 1000; // Convert micro to millis
+        hdr->bitOffset = bitOffset;
+        RING_STATUS status =
+            ringPush(&msgRing, (uint8_t*)hdr,
+                    AMR_MSG_SCM_RAW_SIZE + AMR_MSG_HDR_SIZE + 1);
+        if (AMR_DEBUG && status != RING_STATUS_OK) {
+            debug_printf("Failed to push SCM msg onto ring. Status: %u\n", status);
+        }
     }
-    rxBuf[RX_BUF_SIZE-1] = (rxBuf[RX_BUF_SIZE-1] << 1) | manchBit;
+    else if (idmPre == IDM_PRE_32) {
+        AmrMsgHeader * hdr = (AmrMsgHeader *)(idmData - AMR_MSG_HDR_SIZE);
+        hdr->type = AMR_MSG_TYPE_IDM;
+        // TODO populate timestamp with platform agnostic call
+        // hdr->timestamp = system_get_time() / 1000; // Convert micro to millis
+        hdr->bitOffset = bitOffset;
+        RING_STATUS status =
+            ringPush(&msgRing, (uint8_t*)hdr,
+                    AMR_MSG_IDM_RAW_SIZE + AMR_MSG_HDR_SIZE + 1);
+        if (AMR_DEBUG && status != RING_STATUS_OK) {
+            debug_printf("Failed to push IDM msg onto ring. Status: %u\n", status);
+        }
+    }
+    else if ((scmPlusPre & SCM_PLUS_PRE_32_MASK) == SCM_PLUS_PRE_32) {
+    // else if ((preamble & SCM_PLUS_PRE_32_MASK) == SCM_PLUS_PRE_32) {
+        AmrMsgHeader * hdr = (AmrMsgHeader *)(scmPlusData - AMR_MSG_HDR_SIZE);
+        hdr->type = AMR_MSG_TYPE_SCM_PLUS;
+        // TODO populate timestamp with platform agnostic call
+        // hdr->timestamp = system_get_time() / 1000; // Convert micro to millis
+        hdr->bitOffset = bitOffset;
+        RING_STATUS status =
+            ringPush(&msgRing, (uint8_t*)hdr,
+                    AMR_MSG_SCM_PLUS_RAW_SIZE + AMR_MSG_HDR_SIZE + 1);
+        if (AMR_DEBUG && status != RING_STATUS_OK) {
+            debug_printf("Failed to push SCM+ msg onto ring. Status: %u\n", status);
+        }
+    }
 
     prevRxBit = rxBit;
 
-    // Start looking for the message preambled/sync at the first location in
-    // the buffer that it will fit. (This minimizes any buffering, processing
-    // delay)
-    // Leave space at the front of the Rx buffer to populate the message header
-    // before pushing it onto the processing ring buffer
-    uint8_t* scmData = rxBuf + RX_BUF_SIZE - AMR_MSG_SCM_RAW_SIZE;
-    uint8_t* scmPlusData = rxBuf + RX_BUF_SIZE - AMR_MSG_SCM_PLUS_RAW_SIZE;
-    uint8_t* idmData = rxBuf + RX_BUF_SIZE - AMR_MSG_IDM_RAW_SIZE;
+    // Only increment the head bit after we've processed both buffers 0 and 1
+    if (rxBuf == rxBuf1) {
+        rxBufHeadBit = (rxBufHeadBit + 1) % (AMR_MAX_MSG_SIZE*8);
+    }
 
-    // Check for 21-bit SCM preamble/sync match (0x1F2A60) in first 21 of 24 bits
-    if (scmData[0] == 0xf9 &&
-            scmData[1] == 0x53 &&
-            (scmData[2] & 0xf8) == 0x00) {
-        AmrMsgHeader * hdr = (AmrMsgHeader *)(scmData - sizeof(AmrMsgHeader));
-        hdr->type = AMR_MSG_TYPE_SCM;
-        // TODO platform agnostic time
-        /* hdr->timestamp = system_get_time() / 1000; // Convert micro to millis */
-        RING_STATUS status =
-            ringPush(&msgRing, (uint8_t*)hdr,
-                    AMR_MSG_SCM_RAW_SIZE + sizeof(AmrMsgHeader));
-        if (status != RING_STATUS_OK) {
-            printf("Failed to push msg onto ring. Status: %u\n", status);
-        }
-    }
-    else if (scmPlusData[0] == 0x16 &&
-            scmPlusData[1] == 0xa3) {
-        AmrMsgHeader * hdr = (AmrMsgHeader *)(scmPlusData - sizeof(AmrMsgHeader));
-        hdr->type = AMR_MSG_TYPE_SCM_PLUS;
-        // TODO platform agnostic time
-        /* hdr->timestamp = system_get_time() / 1000; // Convert micro to millis */
-        RING_STATUS status =
-            ringPush(&msgRing, (uint8_t*)hdr,
-                    AMR_MSG_SCM_PLUS_RAW_SIZE + sizeof(AmrMsgHeader));
-        if (status != RING_STATUS_OK) {
-            printf("Failed to push msg onto ring. Status: %u\n", status);
-        }
-    }
-    // Check for 32-bit IDM preamble/sync match (0x555516A3)
-    else if (idmData[0] == 0x55 && idmData[1] == 0x55 &&
-            idmData[2] == 0x16 && idmData[3] == 0xA3) {
-        AmrMsgHeader * hdr = (AmrMsgHeader *)(idmData - sizeof(AmrMsgHeader));
-        hdr->type = AMR_MSG_TYPE_IDM;
-        // TODO platform agnostic time
-        /* hdr->timestamp = system_get_time() / 1000; // Convert micro to millis */
-        RING_STATUS status =
-            ringPush(&msgRing, (uint8_t*)hdr,
-                    AMR_MSG_IDM_RAW_SIZE + sizeof(AmrMsgHeader));
-        if (status != RING_STATUS_OK) {
-            printf("Failed to push msg onto ring. Status: %d\n", status);
-        }
-    }
+    /* uint32_t dt = system_get_time() - ts; */
+    /* if (dt < minIntTime) minIntTime = dt; */
+    /* if (dt > maxIntTime) maxIntTime = dt; */
 }
 
 static inline void parseSCMMsg(const uint8_t *data, uint32_t t_ms) {
@@ -333,27 +386,44 @@ static inline void parseIDMMsg(const uint8_t *data, uint32_t t_ms) {
 }
 
 void amrProcessMsgs() {
-    while (true) {
+    while (1) {
         uint8_t * peek = 0;
         RingPos_t size = ringPeek(&msgRing, &peek); 
         // Message available
-        if (size > 0 && peek) {
+        if (size > AMR_MSG_HDR_SIZE && peek) {
             AmrMsgHeader* hdr = (AmrMsgHeader*)peek;
-            uint8_t* msgData = peek + sizeof(AmrMsgHeader);
+            uint8_t* msgData = peek + AMR_MSG_HDR_SIZE;
+
+            // Shift data to be byte boundary aligned
+            if (hdr->bitOffset != 0) {
+                uint8_t offset = hdr->bitOffset;
+                uint8_t i = 0;
+                for (; i < (size - AMR_MSG_HDR_SIZE - 1); ++i) {
+                    msgData[i] = (msgData[i] << offset) | (msgData[i+1] >> (8-offset));
+                }
+            }
 
             switch (hdr->type) {
                 case AMR_MSG_TYPE_SCM:
                     {
+                        /*printf("SCM Msg. Offset: %u Pre: 0x%02x%02X%02X\n",
+                                hdr->bitOffset, msgData[0], msgData[1],
+                                msgData[2] & 0xf8);*/
                         parseSCMMsg(msgData, hdr->timestamp);
                     }
                     break;
                 case AMR_MSG_TYPE_SCM_PLUS:
                     {
+                        /*printf("SCM+ Msg. Offset: %u Pre: 0x%02x%02x\n",
+                                hdr->bitOffset, msgData[0], msgData[1]);*/
                         parseSCMPlusMsg(msgData, hdr->timestamp);
                     }
                     break;
                 case AMR_MSG_TYPE_IDM:
                     {
+                        /*printf("IDM Msg. Offset: %u Pre: 0x%02x%02x%02x%02x\n",
+                                hdr->bitOffset, msgData[0], msgData[1],
+                                msgData[2], msgData[3]);*/
                         parseIDMMsg(msgData, hdr->timestamp);
                     }
                     break;
@@ -370,9 +440,15 @@ void amrProcessMsgs() {
             break;
         }
     }
+
+    /*
+    printf("%2u %2u\n", minIntTime, maxIntTime);
+    minIntTime = 999999;
+    maxIntTime = 0;
+    // */
 }
 
-void printIdmMsg(const AmrIdmMsg * msg) {
+void ICACHE_FLASH_ATTR printIdmMsg(const AmrIdmMsg * msg) {
     printf(
             "{Time:YYYY-MM-DDTHH:MM:SS.MMM IDM:{Preamble:0x%08X PacketTypeId:0x%02X PacketLength:0x%02X "
             "HammingCode:0x%02X ApplicationVersion:0x%02X ERTType:0x%02X "
