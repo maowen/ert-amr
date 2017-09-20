@@ -31,18 +31,18 @@
 /*            Application specific includes                               */
 /*------------------------------------------------------------------------*/
 
-#include "./compiler_defs.h"
 
 #ifdef PLATFORM_ESP8266
+#include <user_config.h>
 #include "../platform/esp8266/amr_hal.h"
+#include "../platform/esp8266/fastgpio.h"
 #include "../driver/spi.h"
 
-#include "../platform/esp8266/fastgpio.h"
+// #include <osapi.h>
+// #include <user_interface.h>
+// #include <ets_sys.h>
 
-#include <osapi.h>
-#include <user_interface.h>
-#include <ets_sys.h>
-
+#include "./compiler_defs.h"
 #include "./hardware_defs.h"
 #else
 #include <stdio.h> // printf

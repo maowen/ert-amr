@@ -29,7 +29,8 @@
 // GPIO3->
 //
 
-LOCAL void gpio_intr_handler(uint32 intr_mask, void *arg) {
+/* LOCAL void IRAM_ATTR gpio_intr_handler(uint32 intr_mask, void *arg) { */
+void IRAM_ATTR gpio_intr_handler() {
 
     ETS_GPIO_INTR_DISABLE();
     uint32_t gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);
@@ -53,14 +54,6 @@ void amrHalInit() {
     RF_SDN_INIT;
     RF_NIRQ_INIT;
 
-    // Configure radio rx data interrupt handler
-    ETS_GPIO_INTR_DISABLE();
-    ETS_GPIO_INTR_ATTACH(gpio_intr_handler, NULL);
-
-    RF_RX_CLK_INIT;
-    RF_RX_DATA_INIT;
-    gpio_pin_intr_state_set(RF_RX_CLK_ID_PIN,GPIO_PIN_INTR_POSEDGE);
-
     debug_printf("Starting radio init\n");
     /* si446x_disp_func_info(); */
     vRadio_Init();
@@ -72,6 +65,17 @@ void amrHalInit() {
     debug_printf("Start RX...\n");
     vRadio_StartRX(0);
 
+    debug_printf("Enabling Radio RX interrupt handler\n");
+
+    RF_RX_CLK_INIT;
+    RF_RX_DATA_INIT;
+
+    // Configure radio rx data interrupt handler
+    ETS_GPIO_INTR_DISABLE();
+    ETS_GPIO_INTR_ATTACH((void *)gpio_intr_handler, NULL);
+    gpio_pin_intr_state_set(RF_RX_CLK_ID_PIN,GPIO_PIN_INTR_POSEDGE);
+
     ETS_GPIO_INTR_ENABLE(); /* Enable GPIO interrupts */
+    /* interrupts(); */
 }
 

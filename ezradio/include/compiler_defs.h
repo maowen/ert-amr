@@ -114,7 +114,9 @@
 #ifndef COMPILER_DEFS_H
 #define COMPILER_DEFS_H
 
-#include <c_types.h>
+// #include <stdint.h>
+#include "/opt/Sming/Sming/include/user_config.h"
+// #include <system/include/espinc/c_types_compatible.h>
 //-----------------------------------------------------------------------------
 // Macro definitions
 //-----------------------------------------------------------------------------
