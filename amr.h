@@ -66,9 +66,9 @@ typedef struct {
 void amrInit();
 static void amrProcessRxBit(uint8_t rxBit);
 void amrProcessMsgs();
-void printScmMsg(const AmrScmMsg * msg);
-void printScmPlusMsg(const AmrScmPlusMsg * msg);
-void printIdmMsg(const AmrIdmMsg * msg);
+void printScmMsg(const char* dateStr, const AmrScmMsg * msg);
+void printScmPlusMsg(const char * dateStr, const AmrScmPlusMsg * msg);
+void printIdmMsg(const char * dateStr, const AmrIdmMsg * msg);
 void registerScmMsgCallback(void (*callback)(const AmrScmMsg * msg));
 void registerScmPlusMsgCallback(void (*callback)(const AmrScmPlusMsg * msg));
 void registerIdmMsgCallback(void (*callback)(const AmrIdmMsg * msg));

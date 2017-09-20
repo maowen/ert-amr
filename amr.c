@@ -448,14 +448,15 @@ void amrProcessMsgs() {
     // */
 }
 
-void ICACHE_FLASH_ATTR printIdmMsg(const AmrIdmMsg * msg) {
+void ICACHE_FLASH_ATTR printIdmMsg(const char * dateStr, const AmrIdmMsg * msg) {
     printf(
-            "{Time:YYYY-MM-DDTHH:MM:SS.MMM IDM:{Preamble:0x%08X PacketTypeId:0x%02X PacketLength:0x%02X "
+            "{Time:%s IDM:{Preamble:0x%08X PacketTypeId:0x%02X PacketLength:0x%02X "
             "HammingCode:0x%02X ApplicationVersion:0x%02X ERTType:0x%02X "
             "ERTSerialNumber:%10u ConsumptionIntervalCount:%u "
             "ModuleProgrammingState:0x%02X TamperCounters:%02X%02X%02X%02X%02X%02X "
             "AsynchronousCounters:0x%02X PowerOutageFlags:%02X%02X%02X%02X%02X%02X "
             "LastConsumptionCount:%u DifferentialConsumptionIntervals:[",
+            dateStr ? dateStr : "N/A",
             msg->preamble, msg->packetTypeID, msg->packetLength,
             msg->hammingCode, msg->appVersion, msg->ertType, msg->ertId,
             msg->consumptionIntervalCount, msg->moduleProgrammingState,
@@ -475,20 +476,22 @@ void ICACHE_FLASH_ATTR printIdmMsg(const AmrIdmMsg * msg) {
             msg->txTimeOffset, msg->serialNumberCRC, msg->pktCRC);
 }
 
-void printScmMsg(const AmrScmMsg * msg) {
+void printScmMsg(const char * dateStr, const AmrScmMsg * msg) {
     printf(
-            "{Time:YYYY-MM-DDTHH:MM:SS.MMM SCM:{ID:%u Type: %u Tamper:{Phy:%02u Enc:%02u} "
+            "{Time:%s SCM:{ID:%u Type: %u Tamper:{Phy:%02u Enc:%02u} "
             "Consumption: %7u CRC:0x%04x}}\n",
+            dateStr ? dateStr : "N/A",
             msg->id, msg->type, msg->tamper_phy,
             msg->tamper_enc, msg->consumption,
             msg->crc);
 }
 
-void printScmPlusMsg(const AmrScmPlusMsg * msg) {
+void printScmPlusMsg(const char * dateStr, const AmrScmPlusMsg * msg) {
     printf(
-            "{Time:YYYY-MM-DDTHH:MM:SS.MMM SCM+:{ProtocolId:0x%02X "
+            "{Time:%s SCM+:{ProtocolId:0x%02X "
             "EndpointType:0x%02X EndpointID:%10u Consumption:%10u "
             " Tamper:0x%04X PacketCRC:0x%04x}}\n",
+            dateStr ? dateStr : "N/A",
             msg->protocolId, msg->endpointType, msg->endpointId,
             msg->consumption, msg->tamper, msg->crc);
 }
