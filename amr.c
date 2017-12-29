@@ -5,10 +5,10 @@
 #define AMR_DEBUG 0
 #endif
 
-#ifdef PLATFORM_ESP8266
+#ifdef ESP8266
 // Include AMR HAL source file so compiler can inline the
 // amrProcessRxBit function into the interrupt handler
-#include "platform/esp8266/amr_hal.c"
+#include "ezradio/platform/esp8266/amr_hal.c"
 #include <osapi.h>
 #else
 #include <stdio.h>

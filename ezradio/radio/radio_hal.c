@@ -37,7 +37,7 @@ void radio_hal_AssertShutdown(void)
 {
 #if (defined SILABS_PLATFORM_RFSTICK) || (defined SILABS_PLATFORM_LCDBB) || (defined SILABS_PLATFORM_WMB)
   RF_PWRDN = 1;
-#elif (defined PLATFORM_ESP8266)
+#elif (defined ESP8266)
   RF_SDN_ASSERT;
 #else
   PWRDN = 1;
@@ -48,7 +48,7 @@ void radio_hal_DeassertShutdown(void)
 {
 #if (defined SILABS_PLATFORM_RFSTICK) || (defined SILABS_PLATFORM_LCDBB) || (defined SILABS_PLATFORM_WMB)
   RF_PWRDN = 0;
-#elif (defined PLATFORM_ESP8266)
+#elif (defined ESP8266)
   RF_SDN_DEASSERT;
 #else
   PWRDN = 0;
@@ -57,7 +57,7 @@ void radio_hal_DeassertShutdown(void)
 
 void radio_hal_ClearNsel(void)
 {
-#if (defined PLATFORM_ESP8266)
+#if (defined ESP8266)
     RF_NSEL_LOW;
 #else
     RF_NSEL = 0;
@@ -66,7 +66,7 @@ void radio_hal_ClearNsel(void)
 
 void radio_hal_SetNsel(void)
 {
-#if (defined PLATFORM_ESP8266)
+#if (defined ESP8266)
     RF_NSEL_HIGH;
 #else
     RF_NSEL = 1;
@@ -82,7 +82,7 @@ void radio_hal_SpiWriteByte(U8 byteToWrite)
 {
 #if (defined SILABS_PLATFORM_RFSTICK) || (defined SILABS_PLATFORM_LCDBB) || (defined SILABS_PLATFORM_WMB)
   bSpi_ReadWriteSpi1(byteToWrite);
-#elif (defined PLATFORM_ESP8266)
+#elif (defined ESP8266)
   spi_transfer32(byteToWrite, 8);
 #else
   SpiReadWrite(byteToWrite);
@@ -93,7 +93,7 @@ U8 radio_hal_SpiReadByte(void)
 {
 #if (defined SILABS_PLATFORM_RFSTICK) || (defined SILABS_PLATFORM_LCDBB) || (defined SILABS_PLATFORM_WMB)
   return bSpi_ReadWriteSpi1(0xFF);
-#elif (defined PLATFORM_ESP8266)
+#elif (defined ESP8266)
   return (U8)spi_transfer32(0xFF, 8);
 #else
   return SpiReadWrite(0xFF);
@@ -104,7 +104,7 @@ void radio_hal_SpiWriteData(U8 byteCount, U8* pData)
 {
 #if (defined SILABS_PLATFORM_RFSTICK) || (defined SILABS_PLATFORM_LCDBB) || (defined SILABS_PLATFORM_WMB)
   vSpi_WriteDataSpi1(byteCount, pData);
-#elif (defined PLATFORM_ESP8266)
+#elif (defined ESP8266)
   /* spi_transfer(pData, byteCount); */
   U8 cnt;
   for (cnt = 0; cnt < byteCount; ++cnt) {
@@ -119,7 +119,7 @@ void radio_hal_SpiWriteConstData(U8 byteCount, const U8* pData)
 {
 #if (defined SILABS_PLATFORM_RFSTICK) || (defined SILABS_PLATFORM_LCDBB) || (defined SILABS_PLATFORM_WMB)
   vSpi_WriteDataSpi1(byteCount, pData);
-#elif (defined PLATFORM_ESP8266)
+#elif (defined ESP8266)
   U8 cnt;
   for (cnt = 0; cnt < byteCount; ++cnt) {
       spi_transfer32(*(pData++), 8);
@@ -133,7 +133,7 @@ void radio_hal_SpiReadData(U8 byteCount, U8* pData)
 {
 #if (defined SILABS_PLATFORM_RFSTICK) || (defined SILABS_PLATFORM_LCDBB) || (defined SILABS_PLATFORM_WMB)
   vSpi_ReadDataSpi1(byteCount, pData);
-#elif (defined PLATFORM_ESP8266)
+#elif (defined ESP8266)
   memset(pData, 0xFF, byteCount);
   spi_transfer(pData, byteCount);
 #else

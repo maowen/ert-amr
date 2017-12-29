@@ -5,7 +5,7 @@
 /*						      Global definitions				                 */
 /*-------------------------------------------------------------*/
 
-#if (defined PLATFORM_ESP8266)
+#if (defined ESP8266)
 #include "../platform/esp8266/fastgpio.h"
 
 #define RF_SDN_INIT GPIO2_OUTPUT_SET

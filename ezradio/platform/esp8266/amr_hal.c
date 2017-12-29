@@ -30,7 +30,7 @@
 //
 
 /* LOCAL void IRAM_ATTR gpio_intr_handler(uint32 intr_mask, void *arg) { */
-void IRAM_ATTR gpio_intr_handler() {
+void ICACHE_RAM_ATTR gpio_intr_handler() {
 
     ETS_GPIO_INTR_DISABLE();
     uint32_t gpio_status = GPIO_REG_READ(GPIO_STATUS_ADDRESS);

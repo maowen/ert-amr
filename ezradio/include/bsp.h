@@ -32,18 +32,19 @@
 /*------------------------------------------------------------------------*/
 
 
-#ifdef PLATFORM_ESP8266
+#ifdef ESP8266
 #include <user_config.h>
+#include <osapi.h>
+#include <user_interface.h>
+#include <ets_sys.h>
+
+#include "./compiler_defs.h"
+#include "./hardware_defs.h"
+
 #include "../platform/esp8266/amr_hal.h"
 #include "../platform/esp8266/fastgpio.h"
 #include "../driver/spi.h"
 
-// #include <osapi.h>
-// #include <user_interface.h>
-// #include <ets_sys.h>
-
-#include "./compiler_defs.h"
-#include "./hardware_defs.h"
 #else
 #include <stdio.h> // printf
 #include <unistd.h> // usleep
