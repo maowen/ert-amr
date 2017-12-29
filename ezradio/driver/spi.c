@@ -24,6 +24,7 @@
 
 
 #include "spi.h"
+#include <string.h>
 
 #define SPI_NO HSPI // Define spi mode SPI_NO: HSPI=HW SPI, SPI=SW SPI
 #define SPI_GPIO_CS

@@ -1,0 +1,35 @@
+--- ezradio/platform/esp8266/amr_hal.c
++++ ezradio/platform/esp8266/amr_hal.c
+@@ -29,6 +29,9 @@
+ // GPIO3->
+ //
+ 
++static bool amrHalInitialized = false;
++static bool amrHalEnable = false;
++
+ LOCAL void gpio_intr_handler(uint32 intr_mask, void *arg) {
+ 
+     ETS_GPIO_INTR_DISABLE();
+@@ -71,7 +74,21 @@ void amrHalInit() {
+ 
+     debug_printf("Start RX...\n");
+     vRadio_StartRX(0);
++    
++    amrHalInitialized = true;
++    amrHalEnable(true);
++}
+ 
+-    ETS_GPIO_INTR_ENABLE(); /* Enable GPIO interrupts */
++bool amrHalRunning() {
++    return amrEnabled & amrHalInitialized;
+ }
+ 
++void amrHalEnable(bool enable) {
++    if (enable) {
++        ETS_GPIO_INTR_ENABLE(); /* Enable GPIO interrupts */
++    }
++    else {
++        ETS_GPIO_INTR_DISABLE(); /* Disable GPIO interrupts */
++    }
++    amrHalEnabled = enable;
++}

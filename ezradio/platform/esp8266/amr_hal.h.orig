@@ -2,8 +2,6 @@
 #define AMR_HAL_H
 
 void amrHalInit();
-uint8_t amrHalRunning();
-void amrHalEnable(uint8_t enable);
 
 #define printf os_printf_plus // Override the default printf definition
 #define debug_printf(fmt, ...) \
