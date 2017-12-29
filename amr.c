@@ -201,7 +201,7 @@ uint8_t amrRunning() {
     return amrHalRunning();
 }
 
-// This function needs to be inlined into the interrupted handler for performance reasons
+// This function needs to be inlined into the interrupt handler for performance reasons
 static inline void amrProcessRxBit(uint8_t rxBit) {
     // The decoding of the current bit depends on the previous bit and the
     // result is stored in alternating buffers because there are two possible

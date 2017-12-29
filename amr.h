@@ -3,12 +3,17 @@
 
 #include <stdint.h>
 #include "ring/ringbuf.h"
+#include <stdio.h>
 
 #define AMR_MSG_SCM_RAW_SIZE 12
 #define AMR_MSG_SCM_PLUS_RAW_SIZE 16
 #define AMR_MSG_IDM_RAW_SIZE 92
 #define AMR_MAX_MSG_SIZE AMR_MSG_IDM_RAW_SIZE
 #define AMR_MSG_HDR_SIZE sizeof(AmrMsgHeader)
+
+#define debug_printf(fmt, ...) \
+    do { if (AMR_DEBUG) printf("%s:%d:%s(): " fmt, __FILE__, \
+            __LINE__, __func__, ##__VA_ARGS__); } while (0)
 
 typedef enum  {
     AMR_MSG_TYPE_SCM = 0,

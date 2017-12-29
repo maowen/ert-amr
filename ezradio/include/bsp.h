@@ -41,6 +41,7 @@
 #include "./compiler_defs.h"
 #include "./hardware_defs.h"
 
+#include "../../amr.h"
 #include "../platform/esp8266/amr_hal.h"
 #include "../platform/esp8266/fastgpio.h"
 #include "../driver/spi.h"
