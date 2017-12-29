@@ -186,10 +186,19 @@ static inline uint16_t computeCCITTCRC(const uint8_t * data, size_t len) {
 
     return crc == 0x1D0F; /* Compare to residual value */
 }
+
 void amrInit() {
     msgRing = ringInit(msgRingData, sizeof(msgRingData));
 	xor_rxBufPtr = (uintptr_t)(rxBuf0) ^ (uintptr_t)(rxBuf1);
     amrHalInit();
+}
+
+void amrEnable(uint8_t enable) {
+    amrHalEnable(enable);
+}
+
+uint8_t amrRunning() {
+    return amrHalRunning();
 }
 
 // This function needs to be inlined into the interrupted handler for performance reasons
@@ -326,7 +335,7 @@ static inline void parseSCMMsg(const uint8_t *data, uint32_t t_ms) {
 
 static inline void parseSCMPlusMsg(const uint8_t *data, uint32_t t_ms) {
     if(computeCCITTCRC(data+2, sizeof(AmrScmPlusMsg)-2)) {
-        memcpy(&scmPlusMsg, data, sizeof(AmrScmPlusMsg));
+        memcpy((void*)&scmPlusMsg, (void*)data, sizeof(AmrScmPlusMsg));
         scmPlusMsg.frameSync = NTOH_16BIT(scmPlusMsg.frameSync);
         scmPlusMsg.protocolId = scmPlusMsg.protocolId; // No op
         scmPlusMsg.endpointType = scmPlusMsg.endpointType; // No op
@@ -346,7 +355,7 @@ static inline void parseSCMPlusMsg(const uint8_t *data, uint32_t t_ms) {
 
 static inline void parseIDMMsg(const uint8_t *data, uint32_t t_ms) {
     if (computeCCITTCRC(data+4, 88)) {
-        memcpy(&idmMsg, data, 33);
+        memcpy((void*)&idmMsg, (void*)data, 33);
         data+=33;
 
         idmMsg.preamble = NTOH_32BIT(idmMsg.preamble);
@@ -369,7 +378,7 @@ static inline void parseIDMMsg(const uint8_t *data, uint32_t t_ms) {
         }
         data+=53;
 
-        memcpy(&(idmMsg.txTimeOffset), data, 6);
+        memcpy((void*)&(idmMsg.txTimeOffset), (void*)data, 6);
         data+=6;
 
         idmMsg.txTimeOffset = NTOH_16BIT(idmMsg.txTimeOffset);

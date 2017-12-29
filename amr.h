@@ -64,6 +64,8 @@ typedef struct {
 #pragma pack(pop)
 
 void amrInit();
+void amrEnable(uint8_t enable);
+uint8_t amrRunning();
 static void amrProcessRxBit(uint8_t rxBit);
 void amrProcessMsgs();
 void printScmMsg(const char* dateStr, const AmrScmMsg * msg);
