@@ -19,6 +19,7 @@ typedef enum  {
     AMR_MSG_TYPE_SCM = 0,
     AMR_MSG_TYPE_SCM_PLUS,
     AMR_MSG_TYPE_IDM,
+    AMR_MSG_TYPE_IDM18
 } AMR_MSG_TYPE;
 
 #pragma pack(push, 1)
@@ -42,6 +43,24 @@ typedef struct {
 } AmrScmPlusMsg;
 
 typedef struct {
+    uint8_t moduleProgrammingState;
+    uint8_t tamperCounters[6];
+    uint16_t asyncCnt;
+    uint8_t powerOutageFlags[6];
+    uint32_t lastConsumption;
+    uint16_t differentialConsumption[53];
+} IdmStdData;
+
+typedef struct {
+    uint8_t unknown[10];
+    uint32_t lastConsumption;
+    uint32_t lastExcess;
+    uint32_t lastResidual;
+    uint32_t lastConsumptionHighRes;
+    uint8_t unknown2[48];
+} IdmX18Data;
+
+typedef struct {
     uint32_t preamble;
     uint8_t packetTypeID;
     uint8_t packetLength;
@@ -50,12 +69,10 @@ typedef struct {
     uint8_t ertType;
     uint32_t ertId;
     uint8_t consumptionIntervalCount;
-    uint8_t moduleProgrammingState;
-    uint8_t tamperCounters[6];
-    uint16_t asyncCnt;
-    uint8_t powerOutageFlags[6];
-    uint32_t lastConsumption;
-    uint16_t differentialConsumption[53];
+    union {
+        IdmStdData std;
+        IdmX18Data x18;
+    } data;
     uint16_t txTimeOffset;
     uint16_t serialNumberCRC;
     uint16_t pktCRC;
@@ -73,6 +90,9 @@ void amrEnable(uint8_t enable);
 uint8_t amrRunning();
 static void amrProcessRxBit(uint8_t rxBit);
 void amrProcessMsgs();
+void printAmrMsg(const char* dateStr, const void * msg, AMR_MSG_TYPE msgType);
+void registerAmrMsgCallback(void (*callback)(const void * msg, AMR_MSG_TYPE msgType));
+
 void printScmMsg(const char* dateStr, const AmrScmMsg * msg);
 void printScmPlusMsg(const char * dateStr, const AmrScmPlusMsg * msg);
 void printIdmMsg(const char * dateStr, const AmrIdmMsg * msg);

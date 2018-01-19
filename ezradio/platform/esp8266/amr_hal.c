@@ -47,7 +47,7 @@ void ICACHE_RAM_ATTR gpio_intr_handler() {
 }
 
 void amrHalInit() {
-    printf("Perform AMR radio init\n");
+    printf("Perform AMR radio init\r\n");
 
     gpio_init();
     spi_init();
@@ -65,15 +65,15 @@ void amrHalInit() {
     RF_RX_DATA_INIT;
     gpio_pin_intr_state_set(RF_RX_CLK_ID_PIN,GPIO_PIN_INTR_POSEDGE);
 
-    debug_printf("Starting radio init\n");
+    debug_printf("Starting radio init\r\n");
     /* si446x_disp_func_info(); */
     vRadio_Init();
-    debug_printf("Finished radio init\n");
+    debug_printf("Finished radio init\r\n");
     /* si446x_disp_func_info(); */
     /* si446x_disp_dev_state(); */
     /* si446x_disp_gpio_pin_cfg(); */
 
-    debug_printf("Start RX...\n");
+    debug_printf("Start RX...\r\n");
     vRadio_StartRX(0);
 
     amrHalInitialized = true;
@@ -86,12 +86,12 @@ uint8_t amrHalRunning() {
 
 void amrHalEnable(uint8_t enable) {
     if (enable) {
-        debug_printf("Enabling ERT-ARM interrupts\n");
+        debug_printf("Enabling ERT-ARM interrupts\r\n");
         ETS_GPIO_INTR_ENABLE(); /* Enable GPIO interrupts */
     }
     else {
         ETS_GPIO_INTR_DISABLE(); /* Disable GPIO interrupts */
-        debug_printf("Disabling ERT-ARM interrupts\n");
+        debug_printf("Disabling ERT-ARM interrupts\r\n");
     }
     amrHalEnabled = enable;
 }

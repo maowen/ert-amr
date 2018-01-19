@@ -39,9 +39,7 @@ static AmrScmMsg scmMsg = {0};
 static AmrScmPlusMsg scmPlusMsg = {0};
 static AmrIdmMsg idmMsg = {0};
 
-static void (*scmMsgCallback)(const AmrScmMsg * msg) = NULL;
-static void (*scmPlusMsgCallback)(const AmrScmPlusMsg * msg) = NULL;
-static void (*idmMsgCallback)(const AmrIdmMsg * msg) = NULL;
+static void (*amrMsgCallback)(const void * msg, AMR_MSG_TYPE msgType) = NULL;
 
 static Ring msgRing;
 static uint8_t msgRingData[PROC_RING_BUF_SIZE] = {0};
@@ -188,6 +186,7 @@ static inline uint16_t computeCCITTCRC(const uint8_t * data, size_t len) {
 }
 
 void amrInit() {
+    system_set_os_print(1);
     msgRing = ringInit(msgRingData, sizeof(msgRingData));
 	xor_rxBufPtr = (uintptr_t)(rxBuf0) ^ (uintptr_t)(rxBuf1);
     amrHalInit();
@@ -234,8 +233,9 @@ static inline void amrProcessRxBit(uint8_t rxBit) {
     // message. This is accomplished by using the same pointer for both of them.
     // This will result in an SCM+ preamble being found 16-bits after every IDM
     // message. Populating the SCM+ header in front of the message can corrupt
-    // the IDM message.
-    uint8_t* scmPlusData = idmData;
+
+
+int8_t* scmPlusData = idmData;
 
     // Assemble the 32bits of data at the message starts for comparision
     // Compute preambles
@@ -265,7 +265,7 @@ static inline void amrProcessRxBit(uint8_t rxBit) {
             ringPush(&msgRing, (uint8_t*)hdr,
                     AMR_MSG_SCM_RAW_SIZE + AMR_MSG_HDR_SIZE + 1);
         if (AMR_DEBUG && status != RING_STATUS_OK) {
-            debug_printf("Failed to push SCM msg onto ring. Status: %u\n", status);
+            debug_printf("Failed to push SCM msg onto ring. Status: %u\r\n", status);
         }
     }
     else if (idmPre == IDM_PRE_32) {
@@ -278,11 +278,10 @@ static inline void amrProcessRxBit(uint8_t rxBit) {
             ringPush(&msgRing, (uint8_t*)hdr,
                     AMR_MSG_IDM_RAW_SIZE + AMR_MSG_HDR_SIZE + 1);
         if (AMR_DEBUG && status != RING_STATUS_OK) {
-            debug_printf("Failed to push IDM msg onto ring. Status: %u\n", status);
+            debug_printf("Failed to push IDM msg onto ring. Status: %u\r\n", status);
         }
     }
     else if ((scmPlusPre & SCM_PLUS_PRE_32_MASK) == SCM_PLUS_PRE_32) {
-    // else if ((preamble & SCM_PLUS_PRE_32_MASK) == SCM_PLUS_PRE_32) {
         AmrMsgHeader * hdr = (AmrMsgHeader *)(scmPlusData - AMR_MSG_HDR_SIZE);
         hdr->type = AMR_MSG_TYPE_SCM_PLUS;
         // TODO populate timestamp with platform agnostic call
@@ -292,7 +291,7 @@ static inline void amrProcessRxBit(uint8_t rxBit) {
             ringPush(&msgRing, (uint8_t*)hdr,
                     AMR_MSG_SCM_PLUS_RAW_SIZE + AMR_MSG_HDR_SIZE + 1);
         if (AMR_DEBUG && status != RING_STATUS_OK) {
-            debug_printf("Failed to push SCM+ msg onto ring. Status: %u\n", status);
+            debug_printf("Failed to push SCM+ msg onto ring. Status: %u\r\n", status);
         }
     }
 
@@ -324,12 +323,22 @@ static inline void parseSCMMsg(const uint8_t *data, uint32_t t_ms) {
         scmMsg.tamper_enc = data[3] & 0x3;
         scmMsg.crc = data[10] << 8 | data[11];
 
-        if (scmMsgCallback) {
-            scmMsgCallback(&scmMsg);
+
+/*
+if((scmMsg.id & 0xfffffff0) ==  (32839945 & 0xfffffff0)) {
+        printf("SCM %8u: 0x%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\r\n",
+        scmMsg.id,
+        data[0], data[1], data[2], data[3], data[4], data[5], data[6],
+        data[7], data[8], data[9], data[10], data[11], data[12]);
+}
+*/
+
+        if (amrMsgCallback) {
+            amrMsgCallback(&scmMsg, AMR_MSG_TYPE_SCM);
         }
     }
     else {
-        debug_printf("INAVLID SCM CHECKSUM\n");
+        debug_printf("INAVLID SCM CHECKSUM\r\n");
     }
 }
 
@@ -344,53 +353,92 @@ static inline void parseSCMPlusMsg(const uint8_t *data, uint32_t t_ms) {
         scmPlusMsg.tamper = NTOH_16BIT(scmPlusMsg.tamper);
         scmPlusMsg.crc = NTOH_16BIT(scmPlusMsg.crc);
 
-        if (scmMsgCallback) {
-            scmPlusMsgCallback(&scmPlusMsg);
+
+        if (amrMsgCallback) {
+            amrMsgCallback(&scmPlusMsg, AMR_MSG_TYPE_SCM_PLUS);
         }
     }
     else {
-        debug_printf("INAVLID SCM+ CHECKSUM\n");
+        debug_printf("INAVLID SCM+ CHECKSUM\r\n");
     }
 }
 
 static inline void parseIDMMsg(const uint8_t *data, uint32_t t_ms) {
-    if (computeCCITTCRC(data+4, 88)) {
-        memcpy((void*)&idmMsg, (void*)data, 33);
-        data+=33;
+    const uint8_t * head = data;
+    if (computeCCITTCRC(head+4, 88)) {
+        memcpy((void*)&idmMsg, (void*)head, 14);
+        head+=14;
 
         idmMsg.preamble = NTOH_32BIT(idmMsg.preamble);
-        idmMsg.ertType &= 0x0F;
+        // idmMsg.ertType; // No op (deviation from rtl-amr that masks out the first 4-bits)
         idmMsg.ertId = NTOH_32BIT(idmMsg.ertId);
-        // idmMsg.tamperCounters; // No op
-        idmMsg.asyncCnt = NTOH_16BIT(idmMsg.asyncCnt);
-        // idm.powerOutageFlags; // No op
-        idmMsg.lastConsumption = NTOH_32BIT(idmMsg.lastConsumption);
 
-        uint8_t cnt = 0;
-        for (; cnt < 47; cnt++) {
-            uint16_t bit = cnt * 9; /* Absolute bit */
-            uint8_t i = bit / 8; /* Starting byte */
-            uint8_t r = bit % 8; /* Starting bit within starting byte */
-            uint8_t fm = (0xff >> r); /* Front byte bitmask */
-            uint8_t bm = ~((0x80 >> r) - 1); /* Back byte bitmask */
-            idmMsg.differentialConsumption[cnt] =
-                ((uint16_t)(data[i] & fm) << (r+1)) | ((data[i+1] & bm) >> (7-r));
+        if (idmMsg.ertType == 0x18) {
+            memcpy((void *)&(idmMsg.data.x18.unknown), (void*)head, 10);
+            head += 10;
+            memcpy((void *)&(idmMsg.data.x18.lastConsumption), (void*)head, 4);
+            idmMsg.data.x18.lastConsumption = NTOH_32BIT(idmMsg.data.x18.lastConsumption);
+            head += 4;
+            idmMsg.data.x18.lastExcess = (head[0] << 16) | (head[1] << 8) | head[0];
+            head += 3;
+            idmMsg.data.x18.lastResidual = (head[0] << 16) | (head[1] << 8) | head[0];
+            head += 3;
+            memcpy((void *)&(idmMsg.data.x18.lastConsumptionHighRes), (void*)head, 4);
+            idmMsg.data.x18.lastConsumptionHighRes = NTOH_32BIT(idmMsg.data.x18.lastConsumptionHighRes);
+            head += 4;
+
+            memcpy((void*)&(idmMsg.data.x18.unknown2), (void *)head, 48);
+            head += 48;
         }
-        data+=53;
+        else {
+            memcpy((void *)&(idmMsg.data.std.moduleProgrammingState), (void *)head, 19);
+            // idmMsg.tamperCounters; // No op
+            head += 19;
 
-        memcpy((void*)&(idmMsg.txTimeOffset), (void*)data, 6);
-        data+=6;
+            idmMsg.data.std.asyncCnt = NTOH_16BIT(idmMsg.data.std.asyncCnt);
+            // idm.powerOutageFlags; // No op
+            idmMsg.data.std.lastConsumption = NTOH_32BIT(idmMsg.data.std.lastConsumption);
+
+            uint8_t cnt = 0;
+            for (; cnt < 47; cnt++)
+            {
+                uint16_t bit = cnt * 9;          /* Absolute bit */
+                uint8_t i = bit / 8;             /* Starting byte */
+                uint8_t r = bit % 8;             /* Starting bit within starting byte */
+                uint8_t fm = (0xff >> r);        /* Front byte bitmask */
+                uint8_t bm = ~((0x80 >> r) - 1); /* Back byte bitmask */
+                idmMsg.data.std.differentialConsumption[cnt] =
+                    ((uint16_t)(head[i] & fm) << (r + 1)) | ((head[i + 1] & bm) >> (7 - r));
+            }
+            head += 53;
+
+        }
+
+        memcpy((void *)&(idmMsg.txTimeOffset), (void *)head, 6);
+        head += 6;
 
         idmMsg.txTimeOffset = NTOH_16BIT(idmMsg.txTimeOffset);
         idmMsg.serialNumberCRC = NTOH_16BIT(idmMsg.serialNumberCRC);
         idmMsg.pktCRC = NTOH_16BIT(idmMsg.pktCRC);
 
-        if (idmMsgCallback) {
-            idmMsgCallback(&idmMsg);
+
+/* Print Binary */
+if((idmMsg.ertId & 0xfffffff0) ==  (32839945 & 0xfffffff0)) {
+    os_delay_us(50000);
+        // printf("IDM %8u: 0x", idmMsg.ertId); 
+        for (int j = 0; j < 92; ++j) {
+            printf("%02X", data[j]);
+            os_delay_us(5000);
+        }
+        printf("\r\n");
+}
+
+        if (amrMsgCallback) {
+            amrMsgCallback(&idmMsg, AMR_MSG_TYPE_IDM);
         }
     }
     else {
-        debug_printf("INVALID IDM CHECKSUM\n");
+        debug_printf("INVALID IDM CHECKSUM\r\n");
     }
 }
 
@@ -415,7 +463,7 @@ void amrProcessMsgs() {
             switch (hdr->type) {
                 case AMR_MSG_TYPE_SCM:
                     {
-                        /*printf("SCM Msg. Offset: %u Pre: 0x%02x%02X%02X\n",
+                        /*printf("SCM Msg. Offset: %u Pre: 0x%02x%02X%02X\r\n",
                                 hdr->bitOffset, msgData[0], msgData[1],
                                 msgData[2] & 0xf8);*/
                         parseSCMMsg(msgData, hdr->timestamp);
@@ -423,14 +471,14 @@ void amrProcessMsgs() {
                     break;
                 case AMR_MSG_TYPE_SCM_PLUS:
                     {
-                        /*printf("SCM+ Msg. Offset: %u Pre: 0x%02x%02x\n",
+                        /*printf("SCM+ Msg. Offset: %u Pre: 0x%02x%02x\r\n",
                                 hdr->bitOffset, msgData[0], msgData[1]);*/
                         parseSCMPlusMsg(msgData, hdr->timestamp);
                     }
                     break;
                 case AMR_MSG_TYPE_IDM:
                     {
-                        /*printf("IDM Msg. Offset: %u Pre: 0x%02x%02x%02x%02x\n",
+                        /*printf("IDM Msg. Offset: %u Pre: 0x%02x%02x%02x%02x\r\n",
                                 hdr->bitOffset, msgData[0], msgData[1],
                                 msgData[2], msgData[3]);*/
                         parseIDMMsg(msgData, hdr->timestamp);
@@ -438,7 +486,7 @@ void amrProcessMsgs() {
                     break;
                 default:
                     {
-                        debug_printf("Unhandled message type: %u\n", hdr->type);
+                        debug_printf("Unhandled message type: %u\r\n", hdr->type);
                     }
                     break;
             }
@@ -451,69 +499,94 @@ void amrProcessMsgs() {
     }
 
     /*
-    printf("%2u %2u\n", minIntTime, maxIntTime);
+    printf("%2u %2u\r\n", minIntTime, maxIntTime);
     minIntTime = 999999;
     maxIntTime = 0;
     // */
 }
 
 void ICACHE_FLASH_ATTR printIdmMsg(const char * dateStr, const AmrIdmMsg * msg) {
+    if (!msg) {
+        printf("Error: Invalid IDM message pointer\r\n");
+        return;
+    }
+    
     printf(
-            "{Time:%s IDM:{Preamble:0x%08X PacketTypeId:0x%02X PacketLength:0x%02X "
-            "HammingCode:0x%02X ApplicationVersion:0x%02X ERTType:0x%02X "
-            "ERTSerialNumber:%10u ConsumptionIntervalCount:%u "
+        "{Time:%s IDM:{Preamble:0x%08X PacketTypeId:0x%02X PacketLength:0x%02X "
+        // "HammingCode:0x%02X ApplicationVersion:0x%02X "
+        "ERTType:0x%02X ErtID:%10u IntervalCount:%u ",
+        dateStr ? dateStr : "N/A",
+        msg->preamble, msg->packetTypeID, msg->packetLength,
+        // msg->hammingCode, msg->appVersion,
+        msg->ertType, msg->ertId, msg->consumptionIntervalCount);
+
+    if (msg->ertType == 0x18) {
+        printf("LastConsumption:%u LastExcess:%u LastResidual:%u LastConsumptionHiRes:%u",
+            msg->data.x18.lastConsumption, msg->data.x18.lastExcess,
+            msg->data.x18.lastResidual, msg->data.x18.lastConsumptionHighRes);
+    }
+    else {
+        printf(
             "ModuleProgrammingState:0x%02X TamperCounters:%02X%02X%02X%02X%02X%02X "
             "AsynchronousCounters:0x%02X PowerOutageFlags:%02X%02X%02X%02X%02X%02X "
-            "LastConsumptionCount:%u DifferentialConsumptionIntervals:[",
-            dateStr ? dateStr : "N/A",
-            msg->preamble, msg->packetTypeID, msg->packetLength,
-            msg->hammingCode, msg->appVersion, msg->ertType, msg->ertId,
-            msg->consumptionIntervalCount, msg->moduleProgrammingState,
-            msg->tamperCounters[0], msg->tamperCounters[1],
-            msg->tamperCounters[2], msg->tamperCounters[3],
-            msg->tamperCounters[4], msg->tamperCounters[5], msg->asyncCnt,
-            msg->powerOutageFlags[0], msg->powerOutageFlags[1],
-            msg->powerOutageFlags[2], msg->powerOutageFlags[3],
-            msg->powerOutageFlags[4], msg->powerOutageFlags[5],
-            msg->lastConsumption);
-    printf("%u", msg->differentialConsumption[0]);
-    uint8_t i = 1;
-    while (i < 47) {
-        printf(" %u", msg->differentialConsumption[i++]);
+            "LastConsumption:%u DifferentialConsumptionIntervals:[",
+            msg->data.std.moduleProgrammingState,
+            msg->data.std.tamperCounters[0], msg->data.std.tamperCounters[1],
+            msg->data.std.tamperCounters[2], msg->data.std.tamperCounters[3],
+            msg->data.std.tamperCounters[4], msg->data.std.tamperCounters[5],
+            msg->data.std.asyncCnt,
+            msg->data.std.powerOutageFlags[0], msg->data.std.powerOutageFlags[1],
+            msg->data.std.powerOutageFlags[2], msg->data.std.powerOutageFlags[3],
+            msg->data.std.powerOutageFlags[4], msg->data.std.powerOutageFlags[5],
+            msg->data.std.lastConsumption);
+        printf("%u", msg->data.std.differentialConsumption[0]);
+        uint8_t i = 1;
+        while (i < 47) {
+            printf(" %u", msg->data.std.differentialConsumption[i++]);
+        }
+        printf("]");
     }
-    printf("] TransmitTimeOffset:%u SerialNumberCRC:0x%04X PacketCRC:0x%02X}}\n",
+
+    printf(" TransmitTimeOffset:%u SerialNumberCRC:0x%04X PacketCRC:0x%02X}}\r\n",
             msg->txTimeOffset, msg->serialNumberCRC, msg->pktCRC);
 }
 
 void printScmMsg(const char * dateStr, const AmrScmMsg * msg) {
     printf(
-            "{Time:%s SCM:{ID:%u Type: %u Tamper:{Phy:%02u Enc:%02u} "
-            "Consumption: %7u CRC:0x%04x}}\n",
-            dateStr ? dateStr : "N/A",
-            msg->id, msg->type, msg->tamper_phy,
-            msg->tamper_enc, msg->consumption,
-            msg->crc);
+        "{Time:%s SCM:{ID:%u Type: %u Tamper:{Phy:%02u Enc:%02u} "
+        "Consumption: %7u CRC:0x%04x}}\r\n",
+        dateStr ? dateStr : "N/A",
+        msg->id, msg->type, msg->tamper_phy,
+        msg->tamper_enc, msg->consumption,
+        msg->crc);
 }
 
 void printScmPlusMsg(const char * dateStr, const AmrScmPlusMsg * msg) {
     printf(
-            "{Time:%s SCM+:{ProtocolId:0x%02X "
-            "EndpointType:0x%02X EndpointID:%10u Consumption:%10u "
-            " Tamper:0x%04X PacketCRC:0x%04x}}\n",
-            dateStr ? dateStr : "N/A",
-            msg->protocolId, msg->endpointType, msg->endpointId,
-            msg->consumption, msg->tamper, msg->crc);
+        "{Time:%s SCM+:{ProtocolId:0x%02X "
+        "EndpointType:0x%02X EndpointID:%10u Consumption:%10u "
+        " Tamper:0x%04X PacketCRC:0x%04x}}\r\n",
+        dateStr ? dateStr : "N/A",
+        msg->protocolId, msg->endpointType, msg->endpointId,
+        msg->consumption, msg->tamper, msg->crc);
 }
 
-void registerScmMsgCallback(void (*callback)(const AmrScmMsg * msg)) {
-    scmMsgCallback = callback;
+void printAmrMsg(const char * dateStr, const void * msg, AMR_MSG_TYPE msgType) {
+    switch (msgType) {
+        case AMR_MSG_TYPE_SCM:
+            printScmMsg(dateStr, (AmrScmMsg*)msg);
+        break;
+        case AMR_MSG_TYPE_SCM_PLUS:
+            printScmPlusMsg(dateStr, (AmrScmPlusMsg*)msg);
+        break;
+        case AMR_MSG_TYPE_IDM:
+            printIdmPlusMsg(dateStr, (AmrIdmMsg*)msg);
+        break;
+        default:
+        break;
+    }
 }
 
-void registerScmPlusMsgCallback(void (*callback)(const AmrScmPlusMsg * msg)) {
-    scmPlusMsgCallback = callback;
+void registerAmrMsgCallback(void (*callback)(const void * msg, AMR_MSG_TYPE msgType)) {
+    amrMsgCallback = callback;
 }
-
-void registerIdmMsgCallback(void (*callback)(const AmrIdmMsg * msg)) {
-    idmMsgCallback = callback;
-}
-
