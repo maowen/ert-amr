@@ -39,7 +39,7 @@ static AmrScmMsg scmMsg = {0};
 static AmrScmPlusMsg scmPlusMsg = {0};
 static AmrIdmMsg idmMsg = {0};
 
-static void (*amrMsgCallback)(const void * msg, AMR_MSG_TYPE msgType) = NULL;
+static void (*amrMsgCallback)(const void * msg, AMR_MSG_TYPE msgType, const uint8_t *data) = NULL;
 
 static Ring msgRing;
 static uint8_t msgRingData[PROC_RING_BUF_SIZE] = {0};
@@ -307,6 +307,36 @@ int8_t* scmPlusData = idmData;
     /* if (dt > maxIntTime) maxIntTime = dt; */
 }
 
+uint32_t extractBits(const uint8_t *data, uint16_t offset, uint16_t len) {
+    uint32_t out = 0;
+    uint16_t i = offset / 8;    // Starting byte
+    uint16_t startBit = offset % 8;  // Starting bit within starting byte
+    uint16_t unusedBits = (8 - startBit);
+    uint8_t mask = (0xff >> startBit);   // Starting byte bitmask
+
+    if (len <= unusedBits) {
+        out = (data[i] & mask) >> (unusedBits - len);
+    }
+    else {
+        out = data[i] & mask;
+        len -= unusedBits;
+
+        while (len > 0) {
+            ++i;
+            if (len <= 8) {
+                out = (out << len) | (data[i] >> (8 - len));
+                break;
+            }
+            else {
+                out = (out << 8) | data[i];
+                len -= 8;
+            }
+        }
+    }
+
+    return out;
+}
+
 static inline void parseSCMMsg(const uint8_t *data, uint32_t t_ms) {
     if(computeBCHCRC(data+2, 10)) {
         scmMsg.id =
@@ -334,7 +364,7 @@ if((scmMsg.id & 0xfffffff0) ==  (32839945 & 0xfffffff0)) {
 */
 
         if (amrMsgCallback) {
-            amrMsgCallback(&scmMsg, AMR_MSG_TYPE_SCM);
+            amrMsgCallback(&scmMsg, AMR_MSG_TYPE_SCM, data);
         }
     }
     else {
@@ -355,7 +385,7 @@ static inline void parseSCMPlusMsg(const uint8_t *data, uint32_t t_ms) {
 
 
         if (amrMsgCallback) {
-            amrMsgCallback(&scmPlusMsg, AMR_MSG_TYPE_SCM_PLUS);
+            amrMsgCallback(&scmPlusMsg, AMR_MSG_TYPE_SCM_PLUS, data);
         }
     }
     else {
@@ -387,7 +417,10 @@ static inline void parseIDMMsg(const uint8_t *data, uint32_t t_ms) {
             idmMsg.data.x18.lastConsumptionHighRes = NTOH_32BIT(idmMsg.data.x18.lastConsumptionHighRes);
             head += 4;
 
-            memcpy((void*)&(idmMsg.data.x18.unknown2), (void *)head, 48);
+            const uint16_t spacing = 14;
+            for (uint16_t cnt = 0; cnt < 27; cnt++) {
+                idmMsg.data.x18.differentialConsumption[cnt] = extractBits(head, cnt * spacing, spacing);
+            }
             head += 48;
         }
         else {
@@ -423,18 +456,21 @@ static inline void parseIDMMsg(const uint8_t *data, uint32_t t_ms) {
 
 
 /* Print Binary */
+/*
 if((idmMsg.ertId & 0xfffffff0) ==  (32839945 & 0xfffffff0)) {
-    os_delay_us(50000);
         // printf("IDM %8u: 0x", idmMsg.ertId); 
+        printf("\r\n");
         for (int j = 0; j < 92; ++j) {
             printf("%02X", data[j]);
-            os_delay_us(5000);
-        }
-        printf("\r\n");
+            os_delay_us(2000);
+     }
+    printf("\r\n");
+    os_delay_us(50000);
 }
+*/
 
         if (amrMsgCallback) {
-            amrMsgCallback(&idmMsg, AMR_MSG_TYPE_IDM);
+            amrMsgCallback(&idmMsg, AMR_MSG_TYPE_IDM, data);
         }
     }
     else {
@@ -512,18 +548,24 @@ void ICACHE_FLASH_ATTR printIdmMsg(const char * dateStr, const AmrIdmMsg * msg) 
     }
     
     printf(
-        "{Time:%s IDM:{Preamble:0x%08X PacketTypeId:0x%02X PacketLength:0x%02X "
+        "{Time:%s IDM:{" //Preamble:0x%08X PacketTypeId:0x%02X PacketLength:0x%02X "
         // "HammingCode:0x%02X ApplicationVersion:0x%02X "
-        "ERTType:0x%02X ErtID:%10u IntervalCount:%u ",
+        "ERTType:0x%02X ErtID:%10u MsgCnt:%u ",
         dateStr ? dateStr : "N/A",
-        msg->preamble, msg->packetTypeID, msg->packetLength,
+        // msg->preamble, msg->packetTypeID, msg->packetLength,
         // msg->hammingCode, msg->appVersion,
         msg->ertType, msg->ertId, msg->consumptionIntervalCount);
 
     if (msg->ertType == 0x18) {
-        printf("LastConsumption:%u LastExcess:%u LastResidual:%u LastConsumptionHiRes:%u",
+        printf("LastConsumption:%u LastExcess:%u LastResidual:%u LastConsumptionHiRes:%u ",
             msg->data.x18.lastConsumption, msg->data.x18.lastExcess,
             msg->data.x18.lastResidual, msg->data.x18.lastConsumptionHighRes);
+        printf("DiffConsump:[");
+        uint8_t i = 0;
+        while (i < 27) {
+            printf(" %u", msg->data.std.differentialConsumption[i++]);
+        }
+        printf("] ");
     }
     else {
         printf(
@@ -587,6 +629,6 @@ void printAmrMsg(const char * dateStr, const void * msg, AMR_MSG_TYPE msgType) {
     }
 }
 
-void registerAmrMsgCallback(void (*callback)(const void * msg, AMR_MSG_TYPE msgType)) {
+void registerAmrMsgCallback(void (*callback)(const void * msg, AMR_MSG_TYPE msgType, const uint8_t * data)) {
     amrMsgCallback = callback;
 }

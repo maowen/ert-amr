@@ -57,7 +57,7 @@ typedef struct {
     uint32_t lastExcess;
     uint32_t lastResidual;
     uint32_t lastConsumptionHighRes;
-    uint8_t unknown2[48];
+    uint16_t differentialConsumption[27];
 } IdmX18Data;
 
 typedef struct {
@@ -91,7 +91,7 @@ uint8_t amrRunning();
 static void amrProcessRxBit(uint8_t rxBit);
 void amrProcessMsgs();
 void printAmrMsg(const char* dateStr, const void * msg, AMR_MSG_TYPE msgType);
-void registerAmrMsgCallback(void (*callback)(const void * msg, AMR_MSG_TYPE msgType));
+void registerAmrMsgCallback(void (*callback)(const void * msg, AMR_MSG_TYPE msgType, const uint8_t * data));
 
 void printScmMsg(const char* dateStr, const AmrScmMsg * msg);
 void printScmPlusMsg(const char * dateStr, const AmrScmPlusMsg * msg);
