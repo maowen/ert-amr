@@ -12,6 +12,10 @@
 #include <osapi.h>
 #else
 #include <stdio.h>
+void amrHalInit() {}
+void amrHalEnable(uint8_t enable) {}
+uint8_t amrHalRunning() { return 1; }
+#define ICACHE_FLASH_ATTR
 #endif
 
 
@@ -186,7 +190,7 @@ static inline uint16_t computeCCITTCRC(const uint8_t * data, size_t len) {
 }
 
 void amrInit() {
-    system_set_os_print(1);
+    // system_set_os_print(1);
     msgRing = ringInit(msgRingData, sizeof(msgRingData));
 	xor_rxBufPtr = (uintptr_t)(rxBuf0) ^ (uintptr_t)(rxBuf1);
     amrHalInit();
@@ -622,7 +626,7 @@ void printAmrMsg(const char * dateStr, const void * msg, AMR_MSG_TYPE msgType) {
             printScmPlusMsg(dateStr, (AmrScmPlusMsg*)msg);
         break;
         case AMR_MSG_TYPE_IDM:
-            printIdmPlusMsg(dateStr, (AmrIdmMsg*)msg);
+            printIdmMsg(dateStr, (AmrIdmMsg*)msg);
         break;
         default:
         break;
