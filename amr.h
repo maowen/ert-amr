@@ -48,7 +48,7 @@ typedef struct {
     uint16_t asyncCnt;
     uint8_t powerOutageFlags[6];
     uint32_t lastConsumption;
-    uint16_t differentialConsumption[53];
+    uint16_t differentialConsumption[47];
 } IdmStdData;
 
 typedef struct {

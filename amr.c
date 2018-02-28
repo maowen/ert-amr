@@ -225,7 +225,8 @@ static inline void amrProcessRxBit(uint8_t rxBit) {
     uint8_t* bufHead = rxBuf + AMR_MSG_HDR_SIZE + (rxBufHeadBit / 8);
     uint8_t bitOffset = (rxBufHeadBit % 8);
     uint8_t nthBit = 7 - bitOffset;
-    // All rx buffer write are duplicated to a identical circular buffer at the
+
+    // All rx buffer write are duplicated to an identical circular buffer at the
     // back of the first buffer to avoid having to unwrap data;
     *bufHead = (*bufHead & (~(1u << nthBit))) | (manchBit << nthBit);
     *(bufHead + AMR_MAX_MSG_SIZE) = *bufHead;
@@ -233,13 +234,13 @@ static inline void amrProcessRxBit(uint8_t rxBit) {
     uint8_t* msgEnd = bufHead + AMR_MAX_MSG_SIZE;
     uint8_t* scmData = msgEnd - AMR_MSG_SCM_RAW_SIZE;
     uint8_t* idmData = msgEnd - AMR_MSG_IDM_RAW_SIZE;
+
     // Delay the seach for SCM+ preamble until after we checked for an IDM
     // message. This is accomplished by using the same pointer for both of them.
     // This will result in an SCM+ preamble being found 16-bits after every IDM
-    // message. Populating the SCM+ header in front of the message can corrupt
-
-
-int8_t* scmPlusData = idmData;
+    // message. Populating the SCM+ header in front of the SCM+ preamble when the
+    // current messsage is an IDM message the IDM message.
+    int8_t* scmPlusData = idmData;
 
     // Assemble the 32bits of data at the message starts for comparision
     // Compute preambles
@@ -436,16 +437,10 @@ static inline void parseIDMMsg(const uint8_t *data, uint32_t t_ms) {
             // idm.powerOutageFlags; // No op
             idmMsg.data.std.lastConsumption = NTOH_32BIT(idmMsg.data.std.lastConsumption);
 
-            uint8_t cnt = 0;
-            for (; cnt < 47; cnt++)
+            const uint16_t spacing = 9;
+            for (uint16_t cnt = 0; cnt < 47; cnt++)
             {
-                uint16_t bit = cnt * 9;          /* Absolute bit */
-                uint8_t i = bit / 8;             /* Starting byte */
-                uint8_t r = bit % 8;             /* Starting bit within starting byte */
-                uint8_t fm = (0xff >> r);        /* Front byte bitmask */
-                uint8_t bm = ~((0x80 >> r) - 1); /* Back byte bitmask */
-                idmMsg.data.std.differentialConsumption[cnt] =
-                    ((uint16_t)(head[i] & fm) << (r + 1)) | ((head[i + 1] & bm) >> (7 - r));
+                idmMsg.data.std.differentialConsumption[cnt] = extractBits(head, cnt * spacing, spacing);
             }
             head += 53;
 
@@ -567,7 +562,7 @@ void ICACHE_FLASH_ATTR printIdmMsg(const char * dateStr, const AmrIdmMsg * msg) 
         printf("DiffConsump:[");
         uint8_t i = 0;
         while (i < 27) {
-            printf(" %u", msg->data.std.differentialConsumption[i++]);
+            printf(" %u", msg->data.x18.differentialConsumption[i++]);
         }
         printf("] ");
     }
